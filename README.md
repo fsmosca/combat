@@ -7,7 +7,7 @@ A python script to run engine vs engine game matches.
 
 ### Guide
 Edit the source combat.py to define engine locations, options, names and others, then execute combat.py.
-```
+```python
     opening_file = 'grand_swiss_2019_6plies.epd'
     outpgn = 'combat_auto_games.pgn'
     
@@ -25,7 +25,7 @@ Edit the source combat.py to define engine locations, options, names and others,
     eng_name2 = 'Deuterium 2019.2 mob150 ks200'
     
     # Match options    
-    randomize_fen = True
+    randomize_pos = True
     reverse_start_side = True
     max_round = 50
     parallel = 6  # No. of game matches to run in parallel
@@ -34,9 +34,17 @@ Edit the source combat.py to define engine locations, options, names and others,
     base_time_ms = 5000
     inc_time_ms = 50
     
-    # Adjust time odds, should be 1 or more
+    # Adjust time odds, must be 1 or more.
+    # The first 1 in [1, 1] will be for engine1. If [2, 1], time of
+    # engine1 will be reduced by half.
     bt_time_odds = [1, 1]  # bt is base time
     it_time_odds = [1, 1]  # it is increment time
+    
+    bt1 = base_time_ms/max(1, bt_time_odds[0])
+    bt2 = base_time_ms/max(1, bt_time_odds[1])
+    
+    it1 = inc_time_ms/max(1, it_time_odds[0])
+    it2 = inc_time_ms/max(1, it_time_odds[1])
 ```
 Example run:
 ```
