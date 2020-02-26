@@ -23,7 +23,7 @@ import chess.engine
 import logging
 
 
-combat_version = '1.0'
+combat_version = '1.1'
 
 
 # Increase limit to fix RecursionError
@@ -331,7 +331,9 @@ def main():
     base_time_ms = 5000
     inc_time_ms = 50
     
-    # Adjust time odds, should be 1 or more
+    # Adjust time odds, must be 1 or more.
+    # The first 1 in [1, 1] will be for engine1. If [2, 1], time of
+    # engine1 will be reduced by half.
     bt_time_odds = [1, 1]  # bt is base time
     it_time_odds = [1, 1]  # it is increment time
     
@@ -355,7 +357,7 @@ def main():
     
     # Save opening positions to a list
     fens = get_fen_list(opening_file, max_round, randomize_pos)
-    total_games = len(fens) * 2 if reverse_start_side else 1
+    total_games = len(fens) * 2 if reverse_start_side else len(fens)
     
     # Run game matches in parallel
     with ProcessPoolExecutor(max_workers=parallel) as executor:
@@ -378,9 +380,8 @@ def main():
                 swap_clock = [clock[1], clock[0]]
                 g = Match(
                     fen, eng_file2, eng_file1, eng_opt2, eng_opt1, eng_name2,
-                    eng_name1, swap_clock,
-                    round_num + sub_round if reverse_start_side else round_num,
-                    total_games, game_id)
+                    eng_name1, swap_clock, round_num + sub_round, total_games,
+                    game_id)
                 job = executor.submit(g.start_match)            
                 analysis.append(job)
             
