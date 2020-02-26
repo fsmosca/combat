@@ -23,6 +23,9 @@ import chess.engine
 import logging
 
 
+combat_version = '1.0'
+
+
 # Increase limit to fix RecursionError
 sys.setrecursionlimit(10000)  
 
@@ -194,7 +197,6 @@ class Match():
         self.clock[0].rem_time = self.clock[0].btms
         
         # Play the game, till its over by python-chess
-        # while not board.is_game_over(claim_draw=True): 
         while not board.is_game_over():          
             t1 = time.perf_counter_ns()
             
@@ -269,7 +271,7 @@ def update_score(g, n1, n2, s1, s2, d1, d2):
     return s1, s2, d1, d2
 
 
-def get_fen_list(fn, mr, randomize_fen=False):
+def get_fen_list(fn, mr, randomize_pos=False):
     """ 
     Read fen file and return fen list.
     """
@@ -284,19 +286,19 @@ def get_fen_list(fn, mr, randomize_fen=False):
             if pos >= mr:
                 break
             
-    if randomize_fen:
+    if randomize_pos:
         random.shuffle(fens)
 
     return fens
 
 
 def print_match_conditions(max_round, reverse_start_side, opening_file,
-                           randomize_fen, parallel, base_time_ms, inc_time_ms):
+                           randomize_pos, parallel, base_time_ms, inc_time_ms):
     print(f'rounds        : {max_round}')
     print(f'revese side   : {reverse_start_side}')
     print(f'total games   : {max_round*2 if reverse_start_side else max_round}')
     print(f'opening file  : {opening_file}')
-    print(f'randomize fen : {randomize_fen}')        
+    print(f'randomize fen : {randomize_pos}')        
     print(f'base time(ms) : {base_time_ms}')
     print(f'inc time(ms)  : {inc_time_ms}')
     print(f'parallel      : {parallel}\n')
@@ -320,7 +322,7 @@ def main():
     eng_name2 = 'Deuterium 2019.2 mob150 ks200'
     
     # Match options    
-    randomize_fen = True
+    randomize_pos = True
     reverse_start_side = True
     max_round = 50
     parallel = 6  # No. of game matches to run in parallel
@@ -343,7 +345,7 @@ def main():
     clock = [Timer(bt1, it1), Timer(bt2, it2)]
     
     print_match_conditions(max_round, reverse_start_side, opening_file,
-                           randomize_fen, parallel, base_time_ms, inc_time_ms)
+                           randomize_pos, parallel, base_time_ms, inc_time_ms)
     
     # Init vars, s for score, d for draw, tf for time forfeit
     s1, s2, d1, d2, tf1, tf2 = 0, 0, 0, 0, 0, 0
@@ -352,7 +354,7 @@ def main():
     num_res = 0
     
     # Save opening positions to a list
-    fens = get_fen_list(opening_file, max_round, randomize_fen)
+    fens = get_fen_list(opening_file, max_round, randomize_pos)
     total_games = len(fens) * 2 if reverse_start_side else 1
     
     # Run game matches in parallel
