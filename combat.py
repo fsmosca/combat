@@ -63,7 +63,7 @@ class Timer():
 
 class Match():    
     def __init__(self, start_game, eng_file1, eng_file2, eng_opt1, eng_opt2,
-                 eng_name1, eng_name2, clock, round_num, total_games, gid):
+                 eng_name1, eng_name2, clock, round_num, total_games, game_id):
         self.start_game = start_game
         self.eng_file1 = eng_file1
         self.eng_file2 = eng_file2
@@ -77,7 +77,7 @@ class Match():
         self.time_forfeit = [False, False]        
         self.eng_name = [eng_name1, eng_name2]
         self.write_time_forfeit_result = True
-        self.gid = gid  # game id
+        self.game_id = game_id
 
     def update_headers(self, game, board, wplayer, bplayer):
         ga = chess.pgn.Game()
@@ -195,8 +195,8 @@ class Match():
         game = game.from_board(end_board)
         node = game.end()
         
-        logging.info(f'Starting game {self.gid} of {self.total_games}, round: {self.round_num}, ({self.eng_name2} vs {self.eng_name1})')
-        print(f'Starting game {self.gid} / {self.total_games}, round: {self.round_num}, ({self.eng_name2} vs {self.eng_name1})')
+        logging.info(f'Starting game {self.game_id} of {self.total_games}, round: {self.round_num}, ({self.eng_name2} vs {self.eng_name1})')
+        print(f'Starting game {self.game_id} / {self.total_games}, round: {self.round_num}, ({self.eng_name2} vs {self.eng_name1})')
         
         # First engine with index 0 will handle the black side.
         self.clock[1].rem_time = self.clock[1].btms
@@ -248,7 +248,7 @@ class Match():
         
         game = self.update_headers(game, board, self.eng_name2, self.eng_name1)
         
-        return [game, self.gid, self.round_num, self.time_forfeit]
+        return [game, self.game_id, self.round_num, self.time_forfeit]
     
     
 def update_score(g, n1, n2, s1, s2, d1, d2):
@@ -337,7 +337,7 @@ def get_game_list(fn, max_round=500, randomize_pos=False):
 def print_match_conditions(max_round, reverse_start_side, opening_file,
                            randomize_pos, parallel, base_time_ms, inc_time_ms):
     print(f'rounds        : {max_round}')
-    print(f'revese side   : {reverse_start_side}')
+    print(f'reverse side  : {reverse_start_side}')
     print(f'total games   : {max_round*2 if reverse_start_side else max_round}')
     print(f'opening file  : {opening_file}')
     print(f'randomize fen : {randomize_pos}')        
