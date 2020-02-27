@@ -112,11 +112,11 @@ Example pgn output:
 ### Features
 * Can run game matches in parallel.
 * Zero interface lags, engine will get its remaining time based on its reported spent time.
+* Supports fen/epd and pgn files as a source of opening start positions.
 
 ### Limitations
 * Can only run engine vs engine match.
-* No command line support to set engines and other settings. The source has to be modified.
-* PGN format for opening start positions is not supported, only epd file.
+* No command line support to modify engine and other settings. The source combat.py has to be modified.
 * Only uci engines are supported.
 
 ### Testing
@@ -127,4 +127,8 @@ Tested to run on the following conditions:
 
 ### Credits
 * Python-chess  
-https://github.com/niklasf/python-chess
+  * https://github.com/niklasf/python-chess
+  * Handles uci engine and pgn processings.
+* The Week in Chess  
+  * http://theweekinchess.com/
+  * Good source to get chess pgn files.
