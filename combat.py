@@ -19,12 +19,13 @@ from pathlib import Path  # Python 3.4
 import time
 from datetime import datetime
 import random
+import json
 import chess.pgn
 import chess.engine
 import logging
 
 
-combat_version = '1.3'
+combat_version = '1.4'
 
 
 # Increase limit to fix RecursionError
@@ -202,15 +203,15 @@ class Match():
     
     def win_score_adjudication(self, wscores, bscores):
         """
-        Adjudicate game by score.
+        Adjudicate game by score, scores of one side should be successively
+        winning and the scores of other side are successively losing.
         
-        wscores: a list of white score
-        bscores: a list of bad score  
-        score_bad_count: number of times the score is bad or worst
+        wscores: a list of white scores
+        bscores: a list of black scores
         
         Return: 
-            [True, False] if game is bad for black
-            [False, True] if game is bad for white
+            [True, False] if game is good for black
+            [False, True] if game is good for white
             [False, False] if game is not to be adjudicated
         """
         ret = [False, False]  # [Black, white]
@@ -250,7 +251,7 @@ class Match():
         return ret
     
     def start_match(self):
-        # Save time info per move from both engines for score adjudications
+        # Save score info per move from both engines for score adjudications
         eng_score = {0: [], 1: []}
         score_adjudication = [False, False]
         
@@ -439,6 +440,51 @@ def print_match_conditions(max_round, reverse_start_side, opening_file,
     print(f'parallel         : {parallel}\n')
     
     
+def get_engine_data(fn, ename):
+    """
+    Read engine json file to get options etc. of ename.
+    
+    fn: engine json file
+    ename: engine config name to search
+    return: eng path and file and its options that are not default
+    """
+    path_file = None
+    opt = {}
+    
+    with open(fn) as json_file:
+        data = json.load(json_file)
+        
+    for p in data:
+        command = p['command']
+        work_dir = p['workingDirectory']
+        name = p['name']
+        
+        if name != ename:
+            continue
+        
+        path_file = Path(work_dir, command).as_posix()
+        
+        for k, v in p.items():
+            if k == 'options':
+                for o in v:
+                    # d = {'name': 'Ponder', 'default': False, 'value': False, 'type': 'check'}
+                    opt_name = o['name']
+                    
+                    try:
+                        opt_default = o['default']
+                    except KeyError:
+                        continue
+                    except Exception:
+                        logging.exception('Error in getting default option value!')
+                        continue
+                        
+                    opt_value = o['value']
+                    if opt_default != opt_value:
+                        opt.update({opt_name: opt_value})
+        
+        return path_file, opt
+
+    
 def main():
     time_start = time.perf_counter()
     
@@ -447,21 +493,22 @@ def main():
     # Start opening file
     opening_file = 'grand_swiss_2019_6plies.pgn'
     
-    # engine 1 will play as black, engine 2 as white
-    eng_file1 = 'engines/Deuterium_v2019.2.37.73_64bit_pop.exe'
-    eng_file2 = 'engines/Deuterium_v2019.2.37.73_64bit_pop.exe'
+    # Define json file where engines are located. You can use
+    # engines.json file from cutechess program or combat.json.
+    engine_json = 'combat.json'
     
-    # Engine uci options
-    eng_opt1 = {'hash': 128, 'KingAttackWeight': 150}
-    eng_opt2 = {'hash': 128, 'MobilityWeight': 150}
+    # eng_name 1 and 2 should be present in engine json file.
+    eng_name1 = 'Deuterium v2019.2'
+    eng_name2 = 'Deuterium v2019.2 kingshelter150 kingattack150'
     
-    eng_name1 = 'Deuterium kingattack_wt_150'
-    eng_name2 = 'Deuterium mobility_wt_150'
+    # Get eng file and options from engine json file
+    eng_file1, eng_opt1 = get_engine_data(engine_json, eng_name1)        
+    eng_file2, eng_opt2 = get_engine_data(engine_json, eng_name2)
     
     # Match options    
     randomize_pos = True
     reverse_start_side = True
-    max_round = 10
+    max_round = 50
     parallel = 6  # No. of game matches to run in parallel
     
     # Time control
