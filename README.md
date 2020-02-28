@@ -8,35 +8,34 @@ A python script to run engine vs engine game matches.
 ### Guide
 Edit the source combat.py to define engine locations, options, names and others, then execute combat.py.
 ```python
-    opening_file = 'grand_swiss_2019_6plies.epd'
-    outpgn = 'combat_auto_games.pgn'
+    outpgn = 'combat_auto_save_games.pgn'
     
+    # Start opening file
+    opening_file = 'grand_swiss_2019_6plies.pgn'
+    
+    # engine 1 will play as black, engine 2 as white
     eng_file1 = 'engines/Deuterium_v2019.2.37.73_64bit_pop.exe'
     eng_file2 = 'engines/Deuterium_v2019.2.37.73_64bit_pop.exe'
     
     # Engine uci options
-    eng_opt1 = {'hash': 128}
-    eng_opt2 = {'hash': 128,
-                'mobilityweight': 150,
-                'kingshelterweight': 200
-                }
+    eng_opt1 = {'hash': 128, 'KingAttackWeight': 150}
+    eng_opt2 = {'hash': 128, 'MobilityWeight': 150}
     
-    eng_name1 = 'Deuterium 2019.2'
-    eng_name2 = 'Deuterium 2019.2 mob150 ks200'
+    eng_name1 = 'Deuterium kingattack_wt_150'
+    eng_name2 = 'Deuterium mobility_wt_150'
     
     # Match options    
     randomize_pos = True
     reverse_start_side = True
-    max_round = 50
+    max_round = 10
     parallel = 6  # No. of game matches to run in parallel
     
     # Time control
     base_time_ms = 5000
     inc_time_ms = 50
     
-    # Adjust time odds, must be 1 or more.
-    # The first 1 in [1, 1] will be for engine1. If [2, 1], time of
-    # engine1 will be reduced by half.
+    # Adjust time odds, must be 1 or more. The first 1 in [1, 1] will be for engine1.
+    # If [2, 1], time of engine1 will be reduced by half.
     bt_time_odds = [1, 1]  # bt is base time
     it_time_odds = [1, 1]  # it is increment time
     
@@ -45,74 +44,93 @@ Edit the source combat.py to define engine locations, options, names and others,
     
     it1 = inc_time_ms/max(1, it_time_odds[0])
     it2 = inc_time_ms/max(1, it_time_odds[1])
+    
+    # Win score adjudication options
+    win_adjudication = True
+    win_score_cp = 700
+    win_score_count = 4
 ```
 Example run:
 ```
-rounds        : 50
-revese side   : True
-total games   : 100
-opening file  : grand_swiss_2019_6plies.epd
-randomize fen : True
-base time(ms) : 5000
-inc time(ms)  : 50
-parallel      : 6
+Preparing start openings...
+elapse:  0.004s
+Done preparing start openings!
 
-Starting game 1 / 100, round: 1.1, (Deuterium 2019.2 mob150 ks200 vs Deuterium 2019.2)
-Starting game 2 / 100, round: 1.2, (Deuterium 2019.2 vs Deuterium 2019.2 mob150 ks200)
-Starting game 3 / 100, round: 2.1, (Deuterium 2019.2 mob150 ks200 vs Deuterium 2019.2)
-Starting game 4 / 100, round: 2.2, (Deuterium 2019.2 vs Deuterium 2019.2 mob150 ks200)
-Starting game 5 / 100, round: 3.1, (Deuterium 2019.2 mob150 ks200 vs Deuterium 2019.2)
-Starting game 6 / 100, round: 3.2, (Deuterium 2019.2 vs Deuterium 2019.2 mob150 ks200)
-Done game 6, round: 3.2, (Deuterium 2019.2 vs Deuterium 2019.2 mob150 ks200): 1/2-1/2 (threefold repetition)
+rounds           : 10
+reverse side     : True
+total games      : 20
+opening file     : grand_swiss_2019_6plies.pgn
+randomize fen    : True
+base time(ms)    : 5000
+inc time(ms)     : 50
+win adjudication : True
+win score cp     : 700
+win score count  : 4
+parallel         : 6
 
-name                              score     games  score%   Draw%   tf
-Deuterium 2019.2                    0.5         1    50.0   100.0    0
-Deuterium 2019.2 mob150 ks200       0.5         1    50.0   100.0    0
+Starting game 1 / 20, round: 1.1, (Deuterium mobility_wt_150 vs Deuterium kingattack_wt_150)
+Starting game 2 / 20, round: 1.2, (Deuterium kingattack_wt_150 vs Deuterium mobility_wt_150)
+Starting game 3 / 20, round: 2.1, (Deuterium mobility_wt_150 vs Deuterium kingattack_wt_150)
+Starting game 4 / 20, round: 2.2, (Deuterium kingattack_wt_150 vs Deuterium mobility_wt_150)
+Starting game 6 / 20, round: 3.2, (Deuterium kingattack_wt_150 vs Deuterium mobility_wt_150)
+Starting game 5 / 20, round: 3.1, (Deuterium mobility_wt_150 vs Deuterium kingattack_wt_150)
+Done game 1, round: 1.1, (Deuterium mobility_wt_150 vs Deuterium kingattack_wt_150): 1/2-1/2 (threefold repetition)
 
-Starting game 7 / 100, round: 4.1, (Deuterium 2019.2 mob150 ks200 vs Deuterium 2019.2)
-Done game 1, round: 1.1, (Deuterium 2019.2 mob150 ks200 vs Deuterium 2019.2): 1-0 (checkmate)
+name                            score     games  score%   Draw%   tf
+Deuterium kingattack_wt_150       0.5         1    50.0   100.0    0
+Deuterium mobility_wt_150         0.5         1    50.0   100.0    0
 
-name                              score     games  score%   Draw%   tf
-Deuterium 2019.2                    0.5         2    25.0    50.0    0
-Deuterium 2019.2 mob150 ks200       1.5         2    75.0    50.0    0
+Starting game 7 / 20, round: 4.1, (Deuterium mobility_wt_150 vs Deuterium kingattack_wt_150)
+Done game 2, round: 1.2, (Deuterium kingattack_wt_150 vs Deuterium mobility_wt_150): 1/2-1/2 (threefold repetition)
 
-Starting game 8 / 100, round: 4.2, (Deuterium 2019.2 vs Deuterium 2019.2 mob150 ks200)
-Done game 2, round: 1.2, (Deuterium 2019.2 vs Deuterium 2019.2 mob150 ks200): 1-0 (checkmate)
+name                            score     games  score%   Draw%   tf
+Deuterium kingattack_wt_150       1.0         2    50.0   100.0    0
+Deuterium mobility_wt_150         1.0         2    50.0   100.0    0
 
-name                              score     games  score%   Draw%   tf
-Deuterium 2019.2                    1.5         3    50.0    33.3    0
-Deuterium 2019.2 mob150 ks200       1.5         3    50.0    33.3    0
+Starting game 8 / 20, round: 4.2, (Deuterium kingattack_wt_150 vs Deuterium mobility_wt_150)
+Done game 6, round: 3.2, (Deuterium kingattack_wt_150 vs Deuterium mobility_wt_150): 1/2-1/2 (threefold repetition)
+
+name                            score     games  score%   Draw%   tf
+Deuterium kingattack_wt_150       1.5         3    50.0   100.0    0
+Deuterium mobility_wt_150         1.5         3    50.0   100.0    0
 
 ....
 
-Done game 100, round: 50.2, (Deuterium 2019.2 vs Deuterium 2019.2 mob150 ks200): 1/2-1/2 (fifty moves)
+Done game 19, round: 10.1, (Deuterium mobility_wt_150 vs Deuterium kingattack_wt_150): 0-1 (adjudication: good score for black)
 
-name                              score     games  score%   Draw%   tf
-Deuterium 2019.2                   53.5       100    53.5    37.0    0
-Deuterium 2019.2 mob150 ks200      46.5       100    46.5    37.0    0
+name                            score     games  score%   Draw%   tf
+Deuterium kingattack_wt_150       8.5        19    44.7    36.8    0
+Deuterium mobility_wt_150        10.5        19    55.3    36.8    0
+
+Done game 20, round: 10.2, (Deuterium kingattack_wt_150 vs Deuterium mobility_wt_150): 1/2-1/2 (threefold repetition)
+
+name                            score     games  score%   Draw%   tf
+Deuterium kingattack_wt_150       9.0        20    45.0    40.0    0
+Deuterium mobility_wt_150        11.0        20    55.0    40.0    0
+
+Match: done, elapse: 44s
 ```
 Example pgn output:
 ```
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "3.2"]
-[White "Deuterium 2019.2"]
-[Black "Deuterium 2019.2 mob150 ks200"]
-[Result "1/2-1/2"]
+[Event "Computer games"]
+[Site "Combat"]
+[Date "2020.02.28"]
+[Round "1.1"]
+[White "Deuterium mobility_wt_150"]
+[Black "Deuterium kingattack_wt_150"]
+[Result "0-1"]
 [BlackTimeControl "5s+0.05s"]
-[FEN "rnbqkb1r/pp1p1ppp/4pn2/2p5/3P4/6P1/PPP1PPBP/RNBQK1NR w KQkq - 0 1"]
-[Termination "threefold repetition"]
+[Termination "adjudication: good score for black"]
 [WhiteTimeControl "5s+0.05s"]
 
-1. Nf3 { +0.51/9 94ms } 1... Be7 { -0.17/9 141ms } 2. dxc5 { +0.44/10 94ms } 2... O-O { -0.23/11 94ms } 3. Be3 { +0.38/10 109ms } 3... Nc6 { -0.15/10 93ms } 4. O-O { +0.47/11 94ms } 4... b6 { -0.18/11 94ms } 5. cxb6 { +0.53/11 157ms } 5... axb6 { -0.17/11 156ms } 6. c4 { +0.18/9 94ms } 6... Bc5 { -0.17/11 234ms } 7. Nd4 { +0.53/10 94ms } 7... Bb7 { -0.57/12 125ms } 8. Nc3 { +0.71/10 94ms } 8... Qb8 { -0.40/11 109ms } 9. Ndb5 { +0.61/10 78ms } 9... Ne5 { -0.69/12 172ms } 10. Bxc5 { +0.41/12 78ms } 10... bxc5 { -0.46/12 141ms } 11. e4 { +0.82/11 93ms } 11... Nxc4 { -0.90/12 157ms } 12. Qe2 { +0.92/12 250ms } 12... Nb6 { -0.21/10 93ms } 13. a4 { +0.82/9 79ms } 13... d5 { -0.41/10 109ms } 14. e5 { +0.32/9 78ms } 14... Nfd7 { -0.57/10 78ms } 15. f4 { +0.53/10 125ms } 15... d4 { +0.05/12 110ms } 16. Bxb7 { +0.05/12 78ms } 16... Qxb7 { +0.18/12 109ms } 17. Nd6 { +0.39/13 94ms } 17... Qb8 { +0.04/13 141ms } 18. a5 { +0.00/11 172ms } 18... dxc3 { -0.01/14 94ms } 19. axb6 { -0.05/13 78ms } 19... Rxa1 { +0.07/15 109ms } 20. Rxa1 { +0.06/15 78ms } 20... cxb2 { +0.07/14 63ms } 21. Qxb2 { +0.01/14 109ms } 21... Qxb6 { -0.01/13 63ms } 22. Qxb6 { +0.08/13 93ms } 22... Nxb6 { +0.00/13 172ms } 23. Rb1 { +0.12/12 94ms } 23... Nd5 { -0.02/12 297ms } 24. Rc1 { +0.07/12 62ms } 24... f6 { +0.00/13 157ms } 25. Rxc5 { +0.05/12 62ms } 25... fxe5 { +0.00/15 109ms } 26. f5 { +0.00/14 157ms } 26... Ne3 { +0.00/15 62ms } 27. Rxe5 { +0.00/14 63ms } 27... Nxf5 { +0.00/14 62ms } 28. Rxe6 { +0.00/14 94ms } 28... Nxd6 { +0.00/13 94ms } 29. Rxd6 { +0.00/12 62ms } 29... Rc8 { +0.00/14 63ms } 30. h3 { -0.04/10 62ms } 30... Rc2 { +0.00/12 63ms } 31. Rd7 { -0.01/12 78ms } 31... h6 { +0.09/15 125ms } 32. h4 { +0.00/13 94ms } 32... Kh7 { +0.00/15 63ms } 33. Rd6 { -0.02/13 78ms } 33... h5 { +0.00/16 62ms } 34. Kf1 { +0.00/17 110ms } 34... Ra2 { +0.00/17 62ms } 35. Rb6 { +0.00/17 63ms } 35... Rd2 { +0.00/19 93ms } 36. Re6 { +0.00/18 63ms } 36... Rc2 { +0.00/18 62ms } 37. Rb6 { +0.00/21 63ms } 37... Ra2 { +0.00/20 62ms } 38. Rc6 { +0.00/21 79ms } 38... Rb2 { +0.00/20 62ms } 39. Ra6 { +0.00/20 94ms } 39... Rc2 { +0.00/21 125ms } 40. Rb6 { +0.00/26 62ms } 40... g6 { +0.00/18 63ms } 41. Rb7+ { +0.00/15 94ms } 41... Kh6 { +0.00/23 62ms } 42. Rd7 { +0.00/19 63ms } 42... Ra2 { +0.00/22 47ms } 43. Rb7 { +0.00/19 62ms } 43... Rc2 { +0.00/22 47ms } 44. Rd7 { +0.00/34 63ms } 44... Ra2 { +0.00/25 93ms } 45. Rb7 { +0.00/31 78ms } 45... Rc2 { +0.00/25 79ms } 46. Rd7 { +0.00/38 62ms } 46... Ra2 { +0.00/26 78ms } 47. Rb7 { +0.00/36 78ms } 47... Rc2 { +0.00/26 47ms } 48. Rd7 { +0.00/42 63ms } 48... Ra2 { +0.00/26 47ms } 49. Rb7 { +0.00/39 125ms } 49... Rc2 { +0.00/26 63ms } 1/2-1/2
-
+1. d4 Nf6 2. c4 e6 3. Nf3 b6 4. Nc3 { +0.63/7 140ms } 4... d5 { -0.78/8 94ms } 5. Bg5 { +0.62/7 140ms } 5... Be7 { -0.19/9 94ms } 6. cxd5 { +0.82/9 110ms } 6... exd5 { -0.31/12 140ms } 7. e3 { +0.87/11 78ms } 7... O-O { -0.26/13 141ms } 8. Bd3 { +0.57/11 125ms } 8... h6 { -0.32/12 171ms } 9. Bxf6 { +0.63/12 172ms } 9... Bxf6 { -0.42/11 94ms } 10. O-O { +0.53/11 156ms } 10... c6 { -0.32/10 141ms } 11. h3 { +0.69/10 125ms } 11... Re8 { -0.46/9 125ms } 12. Re1 { +0.75/9 78ms } 12... Be6 { -0.60/9 94ms } 13. Rc1 { +0.91/8 109ms } 13... Nd7 { -0.59/9 109ms } 14. Kh1 { +0.75/9 94ms } 14... Nf8 { -0.17/8 94ms } 15. Qd2 { +0.38/8 78ms } 15... a6 { -0.11/9 110ms } 16. e4 { +0.59/8 78ms } 16... b5 { -0.40/11 140ms } 17. exd5 { +0.67/9 79ms } 17... cxd5 { -0.11/11 109ms } 18. a4 { +0.32/10 109ms } 18... b4 { -0.67/11 110ms } 19. Ne2 { +0.27/10 78ms } 19... Qa5 { -0.36/10 78ms } 20. b3 { +0.29/9 78ms } 20... Rac8 { -0.05/10 78ms } 21. g4 { +0.19/10 125ms } 21... Bd7 { +0.08/11 188ms } 22. Bf5 { +0.10/10 109ms } 22... Ne6 { +0.05/10 63ms } 23. Ne5 { +0.55/11 78ms } 23... Bxe5 { -0.11/11 63ms } 24. dxe5 { +0.45/10 79ms } 24... d4 { +0.33/11 93ms } 25. Bxe6 { +0.25/10 63ms } 25... Bxe6 { +1.15/10 62ms } 26. Rxc8 { -0.52/11 63ms } 26... Rxc8 { +0.97/12 62ms } 27. Nxd4 { -0.59/13 78ms } 27... Rd8 { +1.38/13 63ms } 28. Kg1 { -0.82/15 187ms } 28... Qb6 { +0.86/14 110ms } 29. Re4 { -0.69/13 94ms } 29... Bxb3 { +1.02/13 62ms } 30. a5 { -0.62/13 109ms } 30... Qb7 { +0.75/12 94ms } 31. Re1 { -0.66/12 110ms } 31... Bc4 { +1.14/12 125ms } 32. Rc1 { -1.01/11 78ms } 32... b3 { +1.01/11 62ms } 33. Qb2 { -0.81/12 94ms } 33... Bd5 { +0.99/10 62ms } 34. Nf5 { -0.81/10 78ms } 34... Bh1 { +0.91/8 63ms } 35. Ne3 { -0.93/11 93ms } 35... Be4 { +0.79/10 79ms } 36. Rc4 { -1.08/12 171ms } 36... Bd3 { +1.15/11 63ms } 37. Rc1 { -1.01/10 125ms } 37... Qf3 { +1.19/11 62ms } 38. Rd1 { -0.92/11 79ms } 38... Rd5 { +1.12/11 62ms } 39. Kh2 { -1.43/14 94ms } 39... Kh7 { +1.05/11 78ms } 40. h4 { -1.25/11 125ms } 40... Rd8 { +1.70/12 62ms } 41. h5 { -0.78/10 79ms } 41... Rd7 { +1.70/10 62ms } 42. Rd2 { -0.93/12 63ms } 42... Bb5 { +1.62/12 62ms } 43. Rd6 { -1.02/12 63ms } 43... Bc6 { +2.10/12 125ms } 44. Rxd7 { -1.21/12 78ms } 44... Bxd7 { +1.98/11 62ms } 45. Kg1 { -1.26/11 125ms } 45... Bc6 { +1.52/11 63ms } 46. Kf1 { -0.94/11 78ms } 46... Bd5 { +1.51/10 141ms } 47. Qc3 { -0.99/13 78ms } 47... Be6 { +2.13/11 110ms } 48. Qb4 { -1.02/10 62ms } 48... Qh1+ { +1.89/11 203ms } 49. Ke2 { -1.18/3 1ms } 49... Qb1 { +2.54/9 63ms } 50. Qd4 { -1.51/8 79ms } 50... b2 { +3.35/9 62ms } 51. Qc3 { -5.12/9 78ms } 51... Qa2 { +11.17/10 63ms } 52. Qc2+ { -10.96/12 109ms } 52... Kg8 { +11.60/14 125ms } 53. f4 { -11.66/12 94ms } 53... b1=Q { +12.75/14 63ms } 54. Qxa2 { -11.97/11 94ms } 54... Qxa2+ { +13.19/13 94ms } 55. Kd3 { -12.39/14 156ms } 0-1
 ```
 
 ### Features
 * Can run game matches in parallel.
 * Zero interface lags, engine will get its remaining time based on its reported spent time.
 * Supports fen/epd and pgn files as a source of opening start positions.
+* Can adjudicate games based on winning score.
 
 ### Limitations
 * Can only run engine vs engine match.
