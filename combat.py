@@ -25,7 +25,7 @@ import chess.engine
 import logging
 
 
-combat_version = '1.4'
+combat_version = '1.5'
 
 
 # Increase limit to fix RecursionError
@@ -214,38 +214,37 @@ class Match():
             [False, True] if game is good for white
             [False, False] if game is not to be adjudicated
         """
+        n = self.win_score_count  # Default 4
+        w = self.win_score_cp  # Default 700
         ret = [False, False]  # [Black, white]
         
-        wlen = len(wscores)
-        blen = len(bscores)
-        
-        if wlen < self.win_score_count or blen < self.win_score_count:
+        if len(wscores) < n or len(bscores) < n:
             return ret
         
         # (1) White wins
-        wgcnt, bbcnt = 0, 0  # wg is white good, bb is black bad
-        for s in wscores[-4:]:  # Check the last 4 scores
-            if s >= self.win_score_cp:
-                wgcnt += 1
+        w_good_cnt, b_bad_cnt = 0, 0
+        for s in wscores[-n:]:  # Check the last n scores
+            if s >= w:
+                w_good_cnt += 1
                 
-        for s in bscores[-4:]:
-            if s <= -self.win_score_cp:
-                bbcnt += 1
+        for s in bscores[-n:]:
+            if s <= -w:
+                b_bad_cnt += 1
                 
-        if wgcnt >= 4 and bbcnt >= 4:
+        if w_good_cnt >= n and b_bad_cnt >= n:
             return [False, True]
         
         # (2) Black wins
-        wbcnt, bgcnt = 0, 0
-        for s in bscores[-4:]:
-            if s >= self.win_score_cp:
-                bgcnt += 1
+        w_bad_cnt, b_good_cnt = 0, 0
+        for s in bscores[-n:]:
+            if s >= w:
+                b_good_cnt += 1
                 
-        for s in wscores[-4:]:
-            if s <= -self.win_score_cp:
-                wbcnt += 1
+        for s in wscores[-n:]:
+            if s <= -w:
+                w_bad_cnt += 1
                 
-        if bgcnt >= 4 and wbcnt >= 4:
+        if b_good_cnt >= n and w_bad_cnt >= n:
             return [True, False]
         
         return ret
