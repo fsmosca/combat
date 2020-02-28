@@ -13,21 +13,22 @@ Edit the source combat.py to define engine locations, options, names and others,
     # Start opening file
     opening_file = 'grand_swiss_2019_6plies.pgn'
     
-    # engine 1 will play as black, engine 2 as white
-    eng_file1 = 'engines/Deuterium_v2019.2.37.73_64bit_pop.exe'
-    eng_file2 = 'engines/Deuterium_v2019.2.37.73_64bit_pop.exe'
+    # Define json file where engines are located. You can use
+    # engines.json file from cutechess program or combat.json.
+    engine_json = 'combat.json'
     
-    # Engine uci options
-    eng_opt1 = {'hash': 128, 'KingAttackWeight': 150}
-    eng_opt2 = {'hash': 128, 'MobilityWeight': 150}
+    # eng_name 1 and 2 should be present in engine json file.
+    eng_name1 = 'Deuterium v2019.2'
+    eng_name2 = 'Deuterium v2019.2 kingshelter150 kingattack150'
     
-    eng_name1 = 'Deuterium kingattack_wt_150'
-    eng_name2 = 'Deuterium mobility_wt_150'
+    # Get eng file and options from engine json file
+    eng_file1, eng_opt1 = get_engine_data(engine_json, eng_name1)        
+    eng_file2, eng_opt2 = get_engine_data(engine_json, eng_name2)
     
     # Match options    
     randomize_pos = True
     reverse_start_side = True
-    max_round = 10
+    max_round = 50
     parallel = 6  # No. of game matches to run in parallel
     
     # Time control
@@ -131,6 +132,7 @@ Example pgn output:
 * Zero interface lags, engine will get its remaining time based on its reported spent time.
 * Supports fen/epd and pgn files as a source of opening start positions.
 * Can adjudicate games based on winning score.
+* Can read engine settings from combat.json file or cutechess engines.json file.
 
 ### Limitations
 * Can only run engine vs engine match.
