@@ -17,13 +17,14 @@ import concurrent.futures
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path  # Python 3.4
 import time
+from datetime import datetime
 import random
 import chess.pgn
 import chess.engine
 import logging
 
 
-combat_version = '1.2'
+combat_version = '1.3'
 
 
 # Increase limit to fix RecursionError
@@ -63,7 +64,8 @@ class Timer():
 
 class Match():    
     def __init__(self, start_game, eng_file1, eng_file2, eng_opt1, eng_opt2,
-                 eng_name1, eng_name2, clock, round_num, total_games, game_id):
+                 eng_name1, eng_name2, clock, round_num, total_games, game_id,
+                 adjudication=False, win_score_cp=700, win_score_count=4):
         self.start_game = start_game
         self.eng_file1 = eng_file1
         self.eng_file2 = eng_file2
@@ -78,32 +80,26 @@ class Match():
         self.eng_name = [eng_name1, eng_name2]
         self.write_time_forfeit_result = True
         self.game_id = game_id
+        self.adjudication = adjudication
+        self.win_score_cp = win_score_cp
+        self.win_score_count = win_score_count
 
-    def update_headers(self, game, board, wplayer, bplayer):
+    def update_headers(self, game, board, wplayer, bplayer, score_adjudication):
         ga = chess.pgn.Game()
         g = ga.from_board(board)
+        
+        game.headers['Event'] = 'Computer games'
+        game.headers['Site'] = 'Combat'
+        game.headers['Date'] = datetime.today().strftime('%Y.%m.%d')
+        
         try:
             game.headers['FEN'] = g.headers['FEN']    
         except:
             pass
         
-        if not self.time_forfeit[1] and not self.time_forfeit[0]:
-            game.headers['Result'] = g.headers['Result']
-            
-            if board.is_checkmate():
-                game.headers['Termination'] = 'checkmate'
-            elif board.is_stalemate():
-                game.headers['Termination'] = 'stalemate'
-            elif board.is_insufficient_material():
-                game.headers['Termination'] = 'insufficient material'
-            elif board.can_claim_fifty_moves():
-                game.headers['Termination'] = 'fifty moves'            
-            elif board.is_repetition(count=3):
-                game.headers['Termination'] = 'threefold repetition'
-            else:
-                game.headers['Termination'] = 'unknown'
-        else:
+        if self.time_forfeit[1] or self.time_forfeit[0]:
             game.headers['Termination'] = 'time forfeit'
+            
             if self.write_time_forfeit_result:
                 if self.time_forfeit[1]:
                     game.headers['Result'] = '0-1'
@@ -112,6 +108,35 @@ class Match():
             else:
                 game.headers['Result'] = '*'
                 game.headers['Termination'] = 'unterminated'
+        
+        # Win score adjudication
+        elif score_adjudication[0] or score_adjudication[1]:
+            adj_value = 'adjudication: good score for white' if score_adjudication[1] else 'adjudication: good score for black'
+            game.headers['Termination'] = adj_value
+            
+            game.headers['Result'] = '1-0' if score_adjudication[1] else '0-1'            
+        
+        else:
+            game.headers['Result'] = g.headers['Result']
+            
+            if board.is_checkmate():
+                game.headers['Termination'] = 'checkmate'
+                
+            elif board.is_stalemate():
+                game.headers['Termination'] = 'stalemate'
+                
+            elif board.is_insufficient_material():
+                game.headers['Termination'] = 'insufficient mating material'
+                
+            elif board.can_claim_fifty_moves():
+                game.headers['Termination'] = 'fifty-move draw rule' 
+                
+            elif board.is_repetition(count=3):
+                game.headers['Termination'] = 'threefold repetition'
+                
+            else:
+                # Todo: Check the game if this is trigerred, not encountered so far
+                game.headers['Termination'] = 'unknown'
         
         game.headers['Round'] = self.round_num
         game.headers['White'] = wplayer
@@ -175,7 +200,60 @@ class Match():
         
         return None
     
-    def start_match(self):        
+    def win_score_adjudication(self, wscores, bscores):
+        """
+        Adjudicate game by score.
+        
+        wscores: a list of white score
+        bscores: a list of bad score  
+        score_bad_count: number of times the score is bad or worst
+        
+        Return: 
+            [True, False] if game is bad for black
+            [False, True] if game is bad for white
+            [False, False] if game is not to be adjudicated
+        """
+        ret = [False, False]  # [Black, white]
+        
+        wlen = len(wscores)
+        blen = len(bscores)
+        
+        if wlen < self.win_score_count or blen < self.win_score_count:
+            return ret
+        
+        # (1) White wins
+        wgcnt, bbcnt = 0, 0  # wg is white good, bb is black bad
+        for s in wscores[-4:]:  # Check the last 4 scores
+            if s >= self.win_score_cp:
+                wgcnt += 1
+                
+        for s in bscores[-4:]:
+            if s <= -self.win_score_cp:
+                bbcnt += 1
+                
+        if wgcnt >= 4 and bbcnt >= 4:
+            return [False, True]
+        
+        # (2) Black wins
+        wbcnt, bgcnt = 0, 0
+        for s in bscores[-4:]:
+            if s >= self.win_score_cp:
+                bgcnt += 1
+                
+        for s in wscores[-4:]:
+            if s <= -self.win_score_cp:
+                wbcnt += 1
+                
+        if bgcnt >= 4 and wbcnt >= 4:
+            return [True, False]
+        
+        return ret
+    
+    def start_match(self):
+        # Save time info per move from both engines for score adjudications
+        eng_score = {0: [], 1: []}
+        score_adjudication = [False, False]
+        
         eng = [chess.engine.SimpleEngine.popen_uci(self.eng_file1),
                 chess.engine.SimpleEngine.popen_uci(self.eng_file2)]
         
@@ -220,6 +298,9 @@ class Match():
             depth = self.get_search_info(result, 'depth')
             time_ms = self.get_search_info(result, 'time')
             
+            # Save score for game adjudication based on engine score
+            eng_score[board.turn].append(0 if score_cp is None else score_cp)
+            
             # If engine does not give time spent, calculate elapse time manually.
             if time_ms is None:
                 time_ms = (time.perf_counter_ns() - t1)/1000/1000  # from nano to ms
@@ -241,12 +322,20 @@ class Match():
                 break
                 
             # Update the board with the move for next player
-            board.push(result.move)            
+            board.push(result.move) 
+            
+            # Stop game by score adjudication
+            if self.adjudication:
+                score_adjudication = self.win_score_adjudication(
+                    eng_score[chess.WHITE], eng_score[chess.BLACK])
+            
+            if score_adjudication[0] or score_adjudication[1]:
+                break                    
         
         eng[0].quit()
         eng[1].quit()
         
-        game = self.update_headers(game, board, self.eng_name2, self.eng_name1)
+        game = self.update_headers(game, board, self.eng_name2, self.eng_name1, score_adjudication)
         
         return [game, self.game_id, self.round_num, self.time_forfeit]
     
@@ -321,8 +410,8 @@ def get_game_list(fn, max_round=500, randomize_pos=False):
     if randomize_pos:
         random.shuffle(games)
         
-    logging.info(f'elapse: {(time.perf_counter() - t1): 0.2f}s')
-    print(f'elapse: {(time.perf_counter() - t1): 0.2f}s')
+    logging.info(f'elapse: {(time.perf_counter() - t1): 0.3f}s')
+    print(f'elapse: {(time.perf_counter() - t1): 0.3f}s')
     
     if len(games) < max_round:
         logging.warning(f'Number of positions in the file {len(games)} are below max_round {max_round}!')
@@ -335,42 +424,48 @@ def get_game_list(fn, max_round=500, randomize_pos=False):
 
 
 def print_match_conditions(max_round, reverse_start_side, opening_file,
-                           randomize_pos, parallel, base_time_ms, inc_time_ms):
-    print(f'rounds        : {max_round}')
-    print(f'reverse side  : {reverse_start_side}')
-    print(f'total games   : {max_round*2 if reverse_start_side else max_round}')
-    print(f'opening file  : {opening_file}')
-    print(f'randomize fen : {randomize_pos}')        
-    print(f'base time(ms) : {base_time_ms}')
-    print(f'inc time(ms)  : {inc_time_ms}')
-    print(f'parallel      : {parallel}\n')
+                           randomize_pos, parallel, base_time_ms, inc_time_ms,
+                           adjudication, win_score_cp, win_score_count):
+    print(f'rounds           : {max_round}')
+    print(f'reverse side     : {reverse_start_side}')
+    print(f'total games      : {max_round*2 if reverse_start_side else max_round}')
+    print(f'opening file     : {opening_file}')
+    print(f'randomize fen    : {randomize_pos}')        
+    print(f'base time(ms)    : {base_time_ms}')
+    print(f'inc time(ms)     : {inc_time_ms}')    
+    print(f'win adjudication : {adjudication}')
+    print(f'win score cp     : {win_score_cp}')
+    print(f'win score count  : {win_score_count}')
+    print(f'parallel         : {parallel}\n')
     
     
 def main():
+    time_start = time.perf_counter()
+    
     outpgn = 'combat_auto_save_games.pgn'
     
     # Start opening file
-    opening_file = 'grand_swiss_2019_6plies.pgn'  
+    opening_file = 'grand_swiss_2019_6plies.pgn'
     
     # engine 1 will play as black, engine 2 as white
-    eng_file1 = 'engines/Deuterium_v2019.2.37.73_64bit_pop.exe'    
+    eng_file1 = 'engines/Deuterium_v2019.2.37.73_64bit_pop.exe'
     eng_file2 = 'engines/Deuterium_v2019.2.37.73_64bit_pop.exe'
     
     # Engine uci options
-    eng_opt1 = {'hash': 128, 'uci_elo': 2500, 'uci_limitstrength': True}
-    eng_opt2 = {'hash': 128, 'uci_elo': 2600, 'uci_limitstrength': True}
+    eng_opt1 = {'hash': 128, 'KingAttackWeight': 150}
+    eng_opt2 = {'hash': 128, 'MobilityWeight': 150}
     
-    eng_name1 = 'Deuterium v2019.2 Elo 2500'
-    eng_name2 = 'Deuterium v2019.2 Elo 2600'
+    eng_name1 = 'Deuterium kingattack_wt_150'
+    eng_name2 = 'Deuterium mobility_wt_150'
     
     # Match options    
     randomize_pos = True
     reverse_start_side = True
-    max_round = 50
+    max_round = 10
     parallel = 6  # No. of game matches to run in parallel
     
     # Time control
-    base_time_ms = 60000
+    base_time_ms = 5000
     inc_time_ms = 50
     
     # Adjust time odds, must be 1 or more. The first 1 in [1, 1] will be for engine1.
@@ -383,6 +478,11 @@ def main():
     
     it1 = inc_time_ms/max(1, it_time_odds[0])
     it2 = inc_time_ms/max(1, it_time_odds[1])
+    
+    # Win score adjudication options
+    win_adjudication = True
+    win_score_cp = 700
+    win_score_count = 4
     
     # Set each engine clocks
     clock = [Timer(bt1, it1), Timer(bt2, it2)]
@@ -397,7 +497,8 @@ def main():
     total_games = len(games) * 2 if reverse_start_side else len(games)
     
     print_match_conditions(len(games), reverse_start_side, opening_file,
-                           randomize_pos, parallel, base_time_ms, inc_time_ms)
+                           randomize_pos, parallel, base_time_ms, inc_time_ms,
+                           win_adjudication, win_score_cp, win_score_count)
     
     # Run game matches in parallel
     with ProcessPoolExecutor(max_workers=parallel) as executor:
@@ -410,7 +511,7 @@ def main():
                 game, eng_file1, eng_file2, eng_opt1, eng_opt2, eng_name1,
                 eng_name2, clock,
                 round_num + sub_round if reverse_start_side else round_num,
-                total_games, game_id)
+                total_games, game_id, win_adjudication, win_score_cp, win_score_count)
             job = executor.submit(g.start_match)            
             analysis.append(job)
             
@@ -421,7 +522,7 @@ def main():
                 g = Match(
                     game, eng_file2, eng_file1, eng_opt2, eng_opt1, eng_name2,
                     eng_name1, swap_clock, round_num + sub_round, total_games,
-                    game_id)
+                    game_id, win_adjudication, win_score_cp, win_score_count)
                 job = executor.submit(g.start_match)            
                 analysis.append(job)
             
@@ -470,8 +571,8 @@ def main():
             except Exception:
                 logging.exception('Exception in completed analysis.')
     
-    logging.info('Match is completed!')
-    print('Match is completed!')
+    logging.info(f'Match: done, elapse: {(time.perf_counter() - time_start):0.0f}s')
+    print(f'Match: done, elapse: {(time.perf_counter() - time_start):0.0f}s')
     
     logging.shutdown()
     
