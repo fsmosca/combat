@@ -19,13 +19,15 @@ from pathlib import Path  # Python 3.4
 import time
 from datetime import datetime
 import random
+import argparse
 import json
 import chess.pgn
 import chess.engine
 import logging
 
 
-combat_version = '1.5'
+APP_NAME = 'combat'
+APP_VERSION = 'v1.6'
 
 
 # Increase limit to fix RecursionError
@@ -39,6 +41,60 @@ log_level = logging.CRITICAL
 log_format = '%(asctime)s - %(levelname)5s - %(message)s'    
 logging.basicConfig(filename='combat_logging.log', filemode='w', level=log_level, format=log_format)
 
+
+# Formated help Messages for parser
+engine_config_help ='''This is used to define the file where
+engine configurations are located. You may use included file combat.json
+or you can use engines.json from cutechess.
+example:
+--engine-config-file combat.json
+or using the engines.json from cutechess
+--engine-config-file "d:/chess/cutechess/engines.json"'''
+
+engine_help ='''This option is used to define the engines
+playing in the match. It also include tc or time control. You need to call
+this twice. See example below.
+format:
+--engine config-name=E1 tc=btms1+itms1 --engine config-name=E2 tc=btms2+itms2
+where:
+    E1 = engine name from combat.json or engine config file
+    btms1 = base time in ms for engine 1
+    itms1 = increment time in ms for engine 1
+example:
+--engine config-name="Deuterium v2019.2" tc=60000+100 --engine config-name="Deuterium v2019.2 mobility130" tc=60000+100
+note:
+    * engine1 will play as black, in the example above
+      this is Deuterium v2019.2
+    * engine2 will play as white
+    * When round reverse is true the side is reversed that is
+      engine1 will play as white and engine2 will play as black'''
+
+opening_help ='''Opening file is used by engine to start the game. You
+may use pgn or epd or fen formats.
+example:
+--opening file=start.pgn random=true
+or with file path
+--opening file="d:/chess/opening_start.pgn" random=true
+or with epd file
+--opening file="d:/chess/opening.epd" random=true
+or to not use random
+--opening file="d:/chess/opening.epd" random=false'''
+
+parallel_help ='''Option to run game matches in parallel
+example:
+--parallel 1
+default is 1, but if your cpu has more than 1 cores or threads
+lets say 8, you may use
+--parallel 7'''
+win_adjudication_help ='''Option to stop the game when one side is
+already ahead on score. Both engines would agree that one side
+is winning and the other side is lossing.
+example:
+--win-adjudication score=700 count=4
+where:
+    score: engine score in cp
+    count: number of times the score is recorded'''
+        
 
 class Timer():
     def __init__(self, btms, itms):
@@ -484,54 +540,108 @@ def get_engine_data(fn, ename):
         return path_file, opt
 
     
-def main():
-    time_start = time.perf_counter()
+def main():    
+    parser = argparse.ArgumentParser(
+        prog='%s' % (APP_NAME),
+        description='Run engine vs engine match',
+        epilog='%(prog)s' + ' %s' % APP_VERSION,
+        formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('--engine-config-file', required=True,
+                        help=engine_config_help)
+    parser.add_argument('--engine', nargs='*', action='append', required=True,
+                        help=engine_help)
+    parser.add_argument('--opening', nargs='*', required=True, help=opening_help)
+    parser.add_argument('--round', default=500, type=int,
+                        help='number of games to play, twice if reverse is true')
+    parser.add_argument('--reverse', action='store_true',
+                        help='A flag when when set, changes start side, to play a position.')
+    parser.add_argument('--parallel', default=1, type=int, required=False,
+                        help=parallel_help)
+    parser.add_argument('--win-adjudication', nargs='*', required=False,
+                        help=win_adjudication_help)
+    parser.add_argument('--output', default='output_games.pgn',
+                        help='Save output games, default=output_games.pgn')
+    parser.add_argument('-v', '--version', action='version',
+                        version='%(prog)s ' + APP_VERSION)
     
-    outpgn = 'combat_auto_save_games.pgn'
+    args = parser.parse_args()
+    outpgn = args.output
+    parallel = args.parallel  
+    max_round = args.round
+    reverse_start_side = args.reverse
     
-    # Start opening file
-    opening_file = 'grand_swiss_2019_6plies.pgn'
+    # --engine-config-file combat.json
+    engine_json = args.engine_config_file
     
-    # Define json file where engines are located. You can use
-    # engines.json file from cutechess program or combat.json.
-    engine_json = 'combat.json'
+    # --engine config-name="Deuterium 2020" tc=60000+1000 --engine ...
+    eng_name1, eng_name2 = None, None
+    base_time_ms, inc_time_ms, clock = 60000, 100, []
+    black_clock, white_clock = False, False
+    cnt = 0
+    for e in args.engine:
+        cnt += 1
+        for v in e:
+            par_name = v.split('=')[0]
+            par_value = v.split('=')[1]
+            if par_name == 'config-name':
+                if cnt == 1:
+                    eng_name1 = par_value
+                else:
+                    eng_name2 = par_value
+            elif par_name == 'tc':
+                if cnt == 1:
+                    tc_val = par_value
+                    base_time_ms = int(tc_val.split('+')[0])
+                    inc_time_ms = int(tc_val.split('+')[1])
+                    clock.append(Timer(base_time_ms, inc_time_ms))
+                    black_clock = True
+                else:
+                    tc_val = par_value
+                    base_time_ms = int(tc_val.split('+')[0])
+                    inc_time_ms = int(tc_val.split('+')[1])
+                    clock.append(Timer(base_time_ms, inc_time_ms))
+                    white_clock = True
     
-    # eng_name 1 and 2 should be present in engine json file.
-    eng_name1 = 'Deuterium v2019.2'
-    eng_name2 = 'Deuterium v2019.2 kingshelter150 kingattack150'
+    # Stop the script if engine config name is not defined
+    if eng_name1 is None or eng_name2 is None:
+        raise Exception('Engine config name was not defined! Use config-name=engine_name')
+
+    # Stop the script if engine clock is not defined
+    if not black_clock:
+        raise Exception('Black TC was not defined! Use tc=base_time_ms+inc_time_ms')
+    if not white_clock:
+        raise Exception('White TC was not defined! Use tc=base_time_ms+inc_time_ms')
+    
+    # --opening file=start.pgn random=False
+    opening_file, randomize_pos = None, False
+    for v in args.opening:
+        value = v.split('=')
+        if value[0] == 'file':
+            opening_file = value[1]
+        elif value[0] == 'random':
+            randomize_pos = True if value[1] == 'true' else False
+            
+    # --win-adjudication score=700 count=4
+    win_adj, win_score_cp, win_score_count = False, 700, 4
+    if args.win_adjudication is not None:
+        win_adj = True
+        for v in args.win_adjudication:
+            value = v.split('=')
+            if value[0] == 'score':
+                win_score_cp = int(value[1])
+            elif value[0] == 'count':
+                win_score_count = int(value[1])
     
     # Get eng file and options from engine json file
-    eng_file1, eng_opt1 = get_engine_data(engine_json, eng_name1)        
-    eng_file2, eng_opt2 = get_engine_data(engine_json, eng_name2)
-    
-    # Match options    
-    randomize_pos = True
-    reverse_start_side = True
-    max_round = 50
-    parallel = 6  # No. of game matches to run in parallel
-    
-    # Time control
-    base_time_ms = 5000
-    inc_time_ms = 50
-    
-    # Adjust time odds, must be 1 or more. The first 1 in [1, 1] will be for engine1.
-    # If [2, 1], time of engine1 will be reduced by half.
-    bt_time_odds = [1, 1]  # bt is base time
-    it_time_odds = [1, 1]  # it is increment time
-    
-    bt1 = base_time_ms/max(1, bt_time_odds[0])
-    bt2 = base_time_ms/max(1, bt_time_odds[1])
-    
-    it1 = inc_time_ms/max(1, it_time_odds[0])
-    it2 = inc_time_ms/max(1, it_time_odds[1])
-    
-    # Win score adjudication options
-    win_adjudication = True
-    win_score_cp = 700
-    win_score_count = 4
-    
-    # Set each engine clocks
-    clock = [Timer(bt1, it1), Timer(bt2, it2)]
+    try:
+        eng_file1, eng_opt1 = get_engine_data(engine_json, eng_name1)        
+    except TypeError:
+        raise Exception('First engine name cannot be found in engine config file!')
+        
+    try:
+        eng_file2, eng_opt2 = get_engine_data(engine_json, eng_name2)
+    except TypeError:
+        raise Exception('Second engine name cannot be found in engine config file!')
     
     # Init vars, s for score, d for draw, tf for time forfeit
     s1, s2, d1, d2, tf1, tf2 = 0, 0, 0, 0, 0, 0
@@ -539,12 +649,14 @@ def main():
     round_num = 0
     num_res = 0
     
+    time_start = time.perf_counter()
+    
     games = get_game_list(opening_file, max_round, randomize_pos)    
     total_games = len(games) * 2 if reverse_start_side else len(games)
     
     print_match_conditions(len(games), reverse_start_side, opening_file,
                            randomize_pos, parallel, base_time_ms, inc_time_ms,
-                           win_adjudication, win_score_cp, win_score_count)
+                           win_adj, win_score_cp, win_score_count)
     
     # Run game matches in parallel
     with ProcessPoolExecutor(max_workers=parallel) as executor:
@@ -557,7 +669,7 @@ def main():
                 game, eng_file1, eng_file2, eng_opt1, eng_opt2, eng_name1,
                 eng_name2, clock,
                 round_num + sub_round if reverse_start_side else round_num,
-                total_games, game_id, win_adjudication, win_score_cp, win_score_count)
+                total_games, game_id, win_adj, win_score_cp, win_score_count)
             job = executor.submit(g.start_match)            
             analysis.append(job)
             
@@ -568,7 +680,7 @@ def main():
                 g = Match(
                     game, eng_file2, eng_file1, eng_opt2, eng_opt1, eng_name2,
                     eng_name1, swap_clock, round_num + sub_round, total_games,
-                    game_id, win_adjudication, win_score_cp, win_score_count)
+                    game_id, win_adj, win_score_cp, win_score_count)
                 job = executor.submit(g.start_match)            
                 analysis.append(job)
             
