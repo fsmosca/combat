@@ -28,7 +28,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.8'
+APP_VERSION = 'v1.9'
 
 
 # Increase limit to fix RecursionError
@@ -537,6 +537,32 @@ def get_engine_data(fn, ename):
                         opt.update({opt_name: opt_value})
         
         return path_file, opt
+    
+
+def read_engine_option(engine_option_value):
+    players = {}
+    
+    if len(engine_option_value) == 0:
+        return players, None, None
+    
+    for i, e in enumerate(engine_option_value):
+        name, base_time_ms, inc_time_ms = None, None, None
+        for v in e:
+            par_name = v.split('=')[0]
+            par_value = v.split('=')[1]
+            if par_name == 'config-name':
+                name = par_value
+            elif par_name == 'tc':
+                tc_val = par_value
+                base_time_ms = int(tc_val.split('+')[0])
+                inc_time_ms = int(tc_val.split('+')[1])
+                
+        d = {i: {'name': name, 'base': base_time_ms, 'inc': inc_time_ms}}
+        players.update(d)
+        
+    players = collections.OrderedDict(sorted(players.items()))
+    
+    return players, base_time_ms, inc_time_ms
 
     
 def main():    
@@ -569,29 +595,14 @@ def main():
     max_round = args.round
     reverse_start_side = args.reverse
     
-    players = {}  # {0: {'name': None, 'base': None, 'inc': None}, 1: {} ...}
     clock = []  # clock[Timer(), Timer()] index 0 is for black
     
     # --engine-config-file combat.json
     engine_json = args.engine_config_file
     
-    # --engine config-name="Deuterium 2020" tc=60000+1000 --engine ...
-    for i, e in enumerate(args.engine):
-        name, base_time_ms, inc_time_ms = None, None, None
-        for v in e:
-            par_name = v.split('=')[0]
-            par_value = v.split('=')[1]
-            if par_name == 'config-name':
-                name = par_value
-            elif par_name == 'tc':
-                tc_val = par_value
-                base_time_ms = int(tc_val.split('+')[0])
-                inc_time_ms = int(tc_val.split('+')[1])
-                
-        d = {i: {'name': name, 'base': base_time_ms, 'inc': inc_time_ms}}
-        players.update(d)
-        
-    players = collections.OrderedDict(sorted(players.items()))
+    # --engine config-name="E1" tc=1000+100 --engine config-name="E2" ...
+    # players is a dict {0: {'name': None, 'base': None, 'inc': None}, 1: {} ...}
+    players, base_time_ms, inc_time_ms = read_engine_option(args.engine)
         
     # Update clock
     for _, v in players.items():
