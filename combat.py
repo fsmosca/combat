@@ -28,7 +28,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.7'
+APP_VERSION = 'v1.8'
 
 
 # Increase limit to fix RecursionError
@@ -121,14 +121,12 @@ class Timer():
 
 
 class Match():    
-    def __init__(self, start_game, eng_file1, eng_file2, eng_opt1, eng_opt2,
+    def __init__(self, start_game, eng_files, eng_opts,
                  eng_name1, eng_name2, clock, round_num, total_games, game_id,
                  adjudication=False, win_score_cp=700, win_score_count=4):
         self.start_game = start_game
-        self.eng_file1 = eng_file1
-        self.eng_file2 = eng_file2
-        self.eng_opt1 = eng_opt1
-        self.eng_opt2 = eng_opt2
+        self.eng_files = eng_files
+        self.eng_opts = eng_opts
         self.eng_name1 = eng_name1
         self.eng_name2 = eng_name2
         self.clock = clock
@@ -193,7 +191,7 @@ class Match():
                 game.headers['Termination'] = 'threefold repetition'
                 
             else:
-                # Todo: Check the game if this is trigerred, not encountered so far
+                # Todo: Check the game if this is triggered, not encountered so far.
                 game.headers['Termination'] = 'unknown'
         
         game.headers['Round'] = self.round_num
@@ -311,13 +309,13 @@ class Match():
         eng_score = {0: [], 1: []}
         score_adjudication = [False, False]
         
-        eng = [chess.engine.SimpleEngine.popen_uci(self.eng_file1),
-                chess.engine.SimpleEngine.popen_uci(self.eng_file2)]
+        eng = [chess.engine.SimpleEngine.popen_uci(self.eng_files[0]),
+                chess.engine.SimpleEngine.popen_uci(self.eng_files[1])]
         
         # Set options
-        for k, v in self.eng_opt1.items():
+        for k, v in self.eng_opts[0].items():
             eng[0].configure({k: v})
-        for k, v in self.eng_opt2.items():
+        for k, v in self.eng_opts[1].items():
             eng[1].configure({k: v})           
         
         # Create a board which will be played by engines.
@@ -661,7 +659,7 @@ def main():
             round_num += 1
             sub_round = 0.1
             g = Match(
-                game, eng_files[0], eng_files[1], eng_opts[0], eng_opts[1],
+                game, eng_files, eng_opts,
                 players[0]['name'], players[1]['name'], clock,
                 round_num + sub_round if reverse_start_side else round_num,
                 total_games, game_id, win_adj, win_score_cp, win_score_count)
@@ -672,8 +670,10 @@ def main():
                 game_id += 1
                 sub_round += 0.1
                 swap_clock = [clock[1], clock[0]]
+                swap_eng_files = [eng_files[1], eng_files[0]]
+                swap_eng_opts = [eng_opts[1], eng_opts[0]]
                 g = Match(
-                    game, eng_files[1], eng_files[0], eng_opts[1], eng_opts[0],
+                    game, swap_eng_files, swap_eng_opts,
                     players[1]['name'], players[0]['name'], swap_clock,
                     round_num + sub_round, total_games,
                     game_id, win_adj, win_score_cp, win_score_count)
