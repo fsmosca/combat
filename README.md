@@ -7,7 +7,7 @@ A python script to run engine vs engine game matches.
 
 ### Guide
 
-#### Help
+#### 1. Help
 combat.py -h
 ```
 usage: combat [-h] --engine-config-file ENGINE_CONFIG_FILE --engine
@@ -49,7 +49,7 @@ optional arguments:
   --opening [OPENING [OPENING ...]]
                         Opening file is used by engine to start the game. You
                         may use pgn or epd or fen formats.
-                        eexample:
+                        example:
                         --opening file=start.pgn random=true
                         or with file path
                         --opening file="d:/chess/opening_start.pgn" random=true
@@ -80,7 +80,7 @@ optional arguments:
 combat v1.6
 ```
 
-#### Command line
+#### 2. Command line
 ```
 combat.py --engine-config-file combat.json ^
 --engine config-name="Deuterium v2019.2" tc=60000+100 --engine config-name="Deuterium v2019.2 mobility130" tc=60000+100 ^
@@ -91,7 +91,35 @@ combat.py --engine-config-file combat.json ^
 --parallel 1
 ```
 
+Also check the windows batch file run_combat.bat which can be found in this repo. You can modify and run it.
+
+#### 3. How to find the config-name in combat.json file?
+Open combat.json file and find a name key. Example below.
+```
+[
+    {
+        "command": "Deuterium_v2019.2.37.73_64bit_pop.exe",
+        "workingDirectory": "./engines",
+        "name": "Deuterium v2019.2",
+        "protocol": "uci",
+        "options": [
+            {
+                "name": "Hash",
+                "default": 128,
+                "value": 128,
+                "type": "spin",
+                "min": 8,
+                "max": 2048
+            },
+        ......
+        ......
+```
+That `Deuterium v2019.2` will be the engine's config-name.
+
 ### Features
+* Supports time control with base time and increment, like TC 60+1, in combat,  
+  you need to specify in ms and that would become TC 60000+1000. In command line  
+  `--engine config-name=engine1 tc=60000+1000 --engine config-name=engine2 tc=30000+100`
 * Can run game matches in parallel.
 * Zero interface lags, engine will get its remaining time based on its reported spent time.
 * Supports fen/epd and pgn files as a source of opening start positions.
@@ -101,6 +129,7 @@ combat.py --engine-config-file combat.json ^
 ### Limitations
 * Can only run engine vs engine match.
 * Only uci engines are supported.
+* Does not support time control with periods, and movetime.
 
 ### Testing
 Tested to run on the following conditions:
