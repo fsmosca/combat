@@ -19,6 +19,7 @@ from pathlib import Path  # Python 3.4
 import time
 from datetime import datetime
 import random
+import collections
 import argparse
 import json
 import chess.pgn
@@ -27,7 +28,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.6'
+APP_VERSION = 'v1.7'
 
 
 # Increase limit to fix RecursionError
@@ -570,46 +571,42 @@ def main():
     max_round = args.round
     reverse_start_side = args.reverse
     
+    players = {}  # {0: {'name': None, 'base': None, 'inc': None}, 1: {} ...}
+    clock = []  # clock[Timer(), Timer()] index 0 is for black
+    
     # --engine-config-file combat.json
     engine_json = args.engine_config_file
     
     # --engine config-name="Deuterium 2020" tc=60000+1000 --engine ...
-    eng_name1, eng_name2 = None, None
-    base_time_ms, inc_time_ms, clock = 60000, 100, []
-    black_clock, white_clock = False, False
-    cnt = 0
-    for e in args.engine:
-        cnt += 1
+    for i, e in enumerate(args.engine):
+        name, base_time_ms, inc_time_ms = None, None, None
         for v in e:
             par_name = v.split('=')[0]
             par_value = v.split('=')[1]
             if par_name == 'config-name':
-                if cnt == 1:
-                    eng_name1 = par_value
-                else:
-                    eng_name2 = par_value
+                name = par_value
             elif par_name == 'tc':
-                if cnt == 1:
-                    tc_val = par_value
-                    base_time_ms = int(tc_val.split('+')[0])
-                    inc_time_ms = int(tc_val.split('+')[1])
-                    clock.append(Timer(base_time_ms, inc_time_ms))
-                    black_clock = True
-                else:
-                    tc_val = par_value
-                    base_time_ms = int(tc_val.split('+')[0])
-                    inc_time_ms = int(tc_val.split('+')[1])
-                    clock.append(Timer(base_time_ms, inc_time_ms))
-                    white_clock = True
+                tc_val = par_value
+                base_time_ms = int(tc_val.split('+')[0])
+                inc_time_ms = int(tc_val.split('+')[1])
+                
+        d = {i: {'name': name, 'base': base_time_ms, 'inc': inc_time_ms}}
+        players.update(d)
+        
+    players = collections.OrderedDict(sorted(players.items()))
+        
+    # Update clock
+    for _, v in players.items():
+        clock.append(Timer(v['base'], v['inc']))
     
     # Stop the script if engine config name is not defined
-    if eng_name1 is None or eng_name2 is None:
+    if players[0]['name'] is None or players[1]['name'] is None:
         raise Exception('Engine config name was not defined! Use config-name=engine_name')
 
     # Stop the script if engine clock is not defined
-    if not black_clock:
+    if players[0]['base'] is None or players[0]['inc'] is None:
         raise Exception('Black TC was not defined! Use tc=base_time_ms+inc_time_ms')
-    if not white_clock:
+    if players[1]['base'] is None or players[1]['inc'] is None:
         raise Exception('White TC was not defined! Use tc=base_time_ms+inc_time_ms')
     
     # --opening file=start.pgn random=False
@@ -633,21 +630,19 @@ def main():
                 win_score_count = int(value[1])
     
     # Get eng file and options from engine json file
-    try:
-        eng_file1, eng_opt1 = get_engine_data(engine_json, eng_name1)        
-    except TypeError:
-        raise Exception('First engine name cannot be found in engine config file!')
-        
-    try:
-        eng_file2, eng_opt2 = get_engine_data(engine_json, eng_name2)
-    except TypeError:
-        raise Exception('Second engine name cannot be found in engine config file!')
+    eng_files, eng_opts = [None] * len(players), [None] * len(players)
+    for i in range(len(players)):
+        try:
+            eng_files[i], eng_opts[i] = get_engine_data(engine_json, players[i]['name'])
+        except TypeError:
+            raise Exception(f'engine {i+1} name cannot be found in engine config file!')
+        except Exception:
+            logging.exception('Exception occurs in getting engine data from engine config file!')
+            raise Exception('Exception occurs in getting engine data!')
     
     # Init vars, s for score, d for draw, tf for time forfeit
     s1, s2, d1, d2, tf1, tf2 = 0, 0, 0, 0, 0, 0
-    analysis = []
-    round_num = 0
-    num_res = 0
+    analysis, round_num, num_res = [], 0, 0
     
     time_start = time.perf_counter()
     
@@ -666,8 +661,8 @@ def main():
             round_num += 1
             sub_round = 0.1
             g = Match(
-                game, eng_file1, eng_file2, eng_opt1, eng_opt2, eng_name1,
-                eng_name2, clock,
+                game, eng_files[0], eng_files[1], eng_opts[0], eng_opts[1],
+                players[0]['name'], players[1]['name'], clock,
                 round_num + sub_round if reverse_start_side else round_num,
                 total_games, game_id, win_adj, win_score_cp, win_score_count)
             job = executor.submit(g.start_match)            
@@ -678,8 +673,9 @@ def main():
                 sub_round += 0.1
                 swap_clock = [clock[1], clock[0]]
                 g = Match(
-                    game, eng_file2, eng_file1, eng_opt2, eng_opt1, eng_name2,
-                    eng_name1, swap_clock, round_num + sub_round, total_games,
+                    game, eng_files[1], eng_files[0], eng_opts[1], eng_opts[0],
+                    players[1]['name'], players[0]['name'], swap_clock,
+                    round_num + sub_round, total_games,
                     game_id, win_adj, win_score_cp, win_score_count)
                 job = executor.submit(g.start_match)            
                 analysis.append(job)
@@ -711,20 +707,20 @@ def main():
                 print(game_output, file=open(outpgn, 'a'), end='\n\n')
                 
                 s1, s2, d1, d2 = update_score(
-                    game_output, eng_name1, eng_name2, s1, s2, d1, d2)
+                    game_output, players[0]['name'], players[1]['name'], s1, s2, d1, d2)
                 
                 logging.info(f'Done game {game_num}, round: {round_number}, ({wp} vs {bp}): {res} ({termi})')
                 print(f'Done game {game_num}, round: {round_number}, ({wp} vs {bp}): {res} ({termi})')
                 
                 # Print result table.
-                name_len = max(8, max(len(eng_name2), len(eng_name1)))
+                name_len = max(8, max(len(players[0]['name']), len(players[1]['name'])))
                 
                 print('\n%-*s %9s %9s %7s %7s %4s' % (
                     name_len, 'name', 'score', 'games', 'score%', 'Draw%', 'tf'))
                 print('%-*s %9.1f %9d %7.1f %7.1f %4d' % (
-                    name_len, eng_name1, s1, num_res, 100*s1/num_res, 100*d1/num_res, tf1))
+                    name_len, players[0]['name'], s1, num_res, 100*s1/num_res, 100*d1/num_res, tf1))
                 print('%-*s %9.1f %9d %7.1f %7.1f %4d\n' % (
-                    name_len, eng_name2, s2, num_res, 100*s2/num_res, 100*d2/num_res, tf2))
+                    name_len, players[1]['name'], s2, num_res, 100*s2/num_res, 100*d2/num_res, tf2))
                 
             except Exception:
                 logging.exception('Exception in completed analysis.')
