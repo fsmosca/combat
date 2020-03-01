@@ -116,6 +116,135 @@ Open combat.json file and find a name key. Example below.
 ```
 That `Deuterium v2019.2` will be the engine's config-name.
 
+#### 4. Sample run
+```
+combat v1.11
+Preparing start opening from my_startpos.pgn ...
+status: done, games prepared: 6, elapse: 0h:00m:00s:005ms
+
+rounds           : 6
+reverse side     : True
+total games      : 12
+opening file     : D:\Chess\CuteChess-CLI\pos\my_startpos.pgn
+randomize fen    : True
+base time(ms)    : 10000
+inc time(ms)     : 10
+win adjudication : True
+win score cp     : 700
+win score count  : 4
+parallel         : 6
+
+Starting, game: 2 / 12, round: 1.2, players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+Starting, game: 1 / 12, round: 1.1, players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+Starting, game: 3 / 12, round: 2.1, players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+Starting, game: 5 / 12, round: 3.1, players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+Starting, game: 4 / 12, round: 2.2, players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+Starting, game: 6 / 12, round: 3.2, players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+Done, game: 5, round: 3.1, elapse: 0h:00m:14s:417ms
+players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+result: 0-1 (adjudication: good score for black)
+
+name                              score     games  score%   Draw%   tf
+Deuterium v2019.2 mobility130       1.0         1   100.0     0.0    0
+Deuterium v2019.2                   0.0         1     0.0     0.0    0
+
+Starting, game: 7 / 12, round: 4.1, players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+Done, game: 3, round: 2.1, elapse: 0h:00m:17s:179ms
+players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+result: 0-1 (adjudication: good score for black)
+
+name                              score     games  score%   Draw%   tf
+Deuterium v2019.2 mobility130       2.0         2   100.0     0.0    0
+Deuterium v2019.2                   0.0         2     0.0     0.0    0
+
+Starting, game: 8 / 12, round: 4.2, players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+Done, game: 6, round: 3.2, elapse: 0h:00m:17s:436ms
+players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+result: 0-1 (adjudication: good score for black)
+
+name                              score     games  score%   Draw%   tf
+Deuterium v2019.2 mobility130       2.0         3    66.7     0.0    0
+Deuterium v2019.2                   1.0         3    33.3     0.0    0
+
+Done, game: 1, round: 1.1, elapse: 0h:00m:17s:966ms
+players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+result: 0-1 (adjudication: good score for black)
+
+name                              score     games  score%   Draw%   tf
+Deuterium v2019.2 mobility130       3.0         4    75.0     0.0    0
+Deuterium v2019.2                   1.0         4    25.0     0.0    0
+
+Starting, game: 9 / 12, round: 5.1, players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+Starting, game: 10 / 12, round: 5.2, players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+Done, game: 4, round: 2.2, elapse: 0h:00m:18s:129ms
+players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+result: 1-0 (adjudication: good score for white)
+
+name                              score     games  score%   Draw%   tf
+Deuterium v2019.2 mobility130       4.0         5    80.0     0.0    0
+Deuterium v2019.2                   1.0         5    20.0     0.0    0
+
+Starting, game: 11 / 12, round: 6.1, players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+Done, game: 2, round: 1.2, elapse: 0h:00m:19s:254ms
+players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+result: 1-0 (adjudication: good score for white)
+
+name                              score     games  score%   Draw%   tf
+Deuterium v2019.2 mobility130       5.0         6    83.3     0.0    0
+Deuterium v2019.2                   1.0         6    16.7     0.0    0
+
+Starting, game: 12 / 12, round: 6.2, players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+Done, game: 7, round: 4.1, elapse: 0h:00m:12s:209ms
+players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+result: 1/2-1/2 (threefold repetition)
+
+name                              score     games  score%   Draw%   tf
+Deuterium v2019.2 mobility130       5.5         7    78.6    14.3    0
+Deuterium v2019.2                   1.5         7    21.4    14.3    0
+
+Done, game: 8, round: 4.2, elapse: 0h:00m:16s:075ms
+players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+result: 1/2-1/2 (insufficient mating material)
+
+name                              score     games  score%   Draw%   tf
+Deuterium v2019.2 mobility130       6.0         8    75.0    25.0    0
+Deuterium v2019.2                   2.0         8    25.0    25.0    0
+
+Done, game: 11, round: 6.1, elapse: 0h:00m:15s:798ms
+players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+result: 1/2-1/2 (insufficient mating material)
+
+name                              score     games  score%   Draw%   tf
+Deuterium v2019.2 mobility130       6.5         9    72.2    33.3    0
+Deuterium v2019.2                   2.5         9    27.8    33.3    0
+
+Done, game: 10, round: 5.2, elapse: 0h:00m:18s:905ms
+players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+result: 0-1 (adjudication: good score for black)
+
+name                              score     games  score%   Draw%   tf
+Deuterium v2019.2 mobility130       6.5        10    65.0    30.0    0
+Deuterium v2019.2                   3.5        10    35.0    30.0    0
+
+Done, game: 12, round: 6.2, elapse: 0h:00m:17s:767ms
+players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+result: 0-1 (adjudication: good score for black)
+
+name                              score     games  score%   Draw%   tf
+Deuterium v2019.2 mobility130       6.5        11    59.1    27.3    0
+Deuterium v2019.2                   4.5        11    40.9    27.3    0
+
+Done, game: 9, round: 5.1, elapse: 0h:00m:20s:166ms
+players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+result: 1/2-1/2 (insufficient mating material)
+
+name                              score     games  score%   Draw%   tf
+Deuterium v2019.2 mobility130       7.0        12    58.3    33.3    0
+Deuterium v2019.2                   5.0        12    41.7    33.3    0
+
+Match: done, elapse: 0h:00m:39s:303ms
+```
+
 ### Features
 * Supports time control with base time and increment, like TC 60+1, in combat,  
   you need to specify in ms and that would become TC 60000+1000. In command line  
