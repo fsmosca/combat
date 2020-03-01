@@ -28,7 +28,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.9'
+APP_VERSION = 'v1.10'
 
 
 # Increase limit to fix RecursionError
@@ -121,19 +121,17 @@ class Timer():
 
 
 class Match():    
-    def __init__(self, start_game, eng_files, eng_opts,
-                 eng_name1, eng_name2, clock, round_num, total_games, game_id,
-                 adjudication=False, win_score_cp=700, win_score_count=4):
+    def __init__(self, start_game, eng_files, eng_opts, eng_names, clock,
+                 round_num, total_games, game_id, adjudication=False,
+                 win_score_cp=700, win_score_count=4):
         self.start_game = start_game
         self.eng_files = eng_files
         self.eng_opts = eng_opts
-        self.eng_name1 = eng_name1
-        self.eng_name2 = eng_name2
+        self.eng_names = eng_names
         self.clock = clock
         self.round_num = round_num  # for pgn header
         self.total_games = total_games
-        self.time_forfeit = [False, False]        
-        self.eng_name = [eng_name1, eng_name2]
+        self.time_forfeit = [False, False]
         self.write_time_forfeit_result = True
         self.game_id = game_id
         self.adjudication = adjudication
@@ -328,8 +326,8 @@ class Match():
         game = game.from_board(end_board)
         node = game.end()
         
-        logging.info(f'Starting game {self.game_id} of {self.total_games}, round: {self.round_num}, ({self.eng_name2} vs {self.eng_name1})')
-        print(f'Starting game {self.game_id} / {self.total_games}, round: {self.round_num}, ({self.eng_name2} vs {self.eng_name1})')
+        logging.info(f'Starting game {self.game_id} of {self.total_games}, round: {self.round_num}, ({self.eng_names[1]} vs {self.eng_names[0]})')
+        print(f'Starting game {self.game_id} / {self.total_games}, round: {self.round_num}, ({self.eng_names[1]} vs {self.eng_names[0]})')
         
         # First engine with index 0 will handle the black side.
         self.clock[1].rem_time = self.clock[1].btms
@@ -390,11 +388,28 @@ class Match():
         eng[0].quit()
         eng[1].quit()
         
-        game = self.update_headers(game, board, self.eng_name2, self.eng_name1, score_adjudication)
+        game = self.update_headers(game, board, self.eng_names[1], self.eng_names[0], score_adjudication)
         
         return [game, self.game_id, self.round_num, self.time_forfeit]
+
+
+def get_time_h_mm_ss_ms(time_ns, symbol=True):
+        """
+        Converts time delta to hh:mm:ss:ms format.
+        
+        time_ns: time delta in nanoseconds
+        return: time in h:m:s:ms format
+        """
+        time_ms = time_ns//1000000
+        s, ms = divmod(time_ms, 1000)
+        m, s = divmod(s, 60)
+        h, m = divmod(m, 60)
+
+        if not symbol:
+            return '{:01d}h:{:02d}m:{:02d}s:{:03d}'.format(h, m, s, ms)
+        return '{:01d}h:{:02d}m:{:02d}s:{:03d}ms'.format(h, m, s, ms)
     
-    
+
 def update_score(g, n1, n2, s1, s2, d1, d2):
     """ 
     n1, n2 are engine names
@@ -555,7 +570,10 @@ def read_engine_option(engine_option_value):
             elif par_name == 'tc':
                 tc_val = par_value
                 base_time_ms = int(tc_val.split('+')[0])
-                inc_time_ms = int(tc_val.split('+')[1])
+                try:
+                    inc_time_ms = int(tc_val.split('+')[1])
+                except IndexError:
+                    raise Exception('Time increment is missing!')
                 
         d = {i: {'name': name, 'base': base_time_ms, 'inc': inc_time_ms}}
         players.update(d)
@@ -603,20 +621,20 @@ def main():
     # --engine config-name="E1" tc=1000+100 --engine config-name="E2" ...
     # players is a dict {0: {'name': None, 'base': None, 'inc': None}, 1: {} ...}
     players, base_time_ms, inc_time_ms = read_engine_option(args.engine)
+    names = [players[0]['name'], players[1]['name']]
         
     # Update clock
     for _, v in players.items():
         clock.append(Timer(v['base'], v['inc']))
     
     # Stop the script if engine config name is not defined
-    if players[0]['name'] is None or players[1]['name'] is None:
+    if names[0] is None or names[1] is None:
         raise Exception('Engine config name was not defined! Use config-name=engine_name')
 
     # Stop the script if engine clock is not defined
-    if players[0]['base'] is None or players[0]['inc'] is None:
-        raise Exception('Black TC was not defined! Use tc=base_time_ms+inc_time_ms')
-    if players[1]['base'] is None or players[1]['inc'] is None:
-        raise Exception('White TC was not defined! Use tc=base_time_ms+inc_time_ms')
+    for i in range(len(names)):
+        if players[i]['base'] is None or players[i]['inc'] is None:
+            raise Exception(f'{"Black" if i == 0 else "White"} TC was not defined! Use tc=base_time_ms+inc_time_ms')
     
     # --opening file=start.pgn random=False
     opening_file, randomize_pos = None, False
@@ -639,10 +657,10 @@ def main():
                 win_score_count = int(value[1])
     
     # Get eng file and options from engine json file
-    eng_files, eng_opts = [None] * len(players), [None] * len(players)
-    for i in range(len(players)):
+    eng_files, eng_opts = [None] * len(names), [None] * len(names)
+    for i in range(len(names)):
         try:
-            eng_files[i], eng_opts[i] = get_engine_data(engine_json, players[i]['name'])
+            eng_files[i], eng_opts[i] = get_engine_data(engine_json, names[i])
         except TypeError:
             raise Exception(f'engine {i+1} name cannot be found in engine config file!')
         except Exception:
@@ -653,7 +671,7 @@ def main():
     s1, s2, d1, d2, tf1, tf2 = 0, 0, 0, 0, 0, 0
     analysis, round_num, num_res = [], 0, 0
     
-    time_start = time.perf_counter()
+    time_start = time.perf_counter_ns()
     
     games = get_game_list(opening_file, max_round, randomize_pos)    
     total_games = len(games) * 2 if reverse_start_side else len(games)
@@ -661,6 +679,8 @@ def main():
     print_match_conditions(len(games), reverse_start_side, opening_file,
                            randomize_pos, parallel, base_time_ms, inc_time_ms,
                            win_adj, win_score_cp, win_score_count)
+    
+    names = [players[0]['name'], players[1]['name']]
     
     # Run game matches in parallel
     with ProcessPoolExecutor(max_workers=parallel) as executor:
@@ -670,8 +690,7 @@ def main():
             round_num += 1
             sub_round = 0.1
             g = Match(
-                game, eng_files, eng_opts,
-                players[0]['name'], players[1]['name'], clock,
+                game, eng_files, eng_opts, names, clock,
                 round_num + sub_round if reverse_start_side else round_num,
                 total_games, game_id, win_adj, win_score_cp, win_score_count)
             job = executor.submit(g.start_match)            
@@ -683,10 +702,10 @@ def main():
                 swap_clock = [clock[1], clock[0]]
                 swap_eng_files = [eng_files[1], eng_files[0]]
                 swap_eng_opts = [eng_opts[1], eng_opts[0]]
+                swap_names = [players[1]['name'], players[0]['name']]
                 g = Match(
-                    game, swap_eng_files, swap_eng_opts,
-                    players[1]['name'], players[0]['name'], swap_clock,
-                    round_num + sub_round, total_games,
+                    game, swap_eng_files, swap_eng_opts, swap_names,
+                    swap_clock, round_num + sub_round, total_games,
                     game_id, win_adj, win_score_cp, win_score_count)
                 job = executor.submit(g.start_match)            
                 analysis.append(job)
@@ -718,26 +737,27 @@ def main():
                 print(game_output, file=open(outpgn, 'a'), end='\n\n')
                 
                 s1, s2, d1, d2 = update_score(
-                    game_output, players[0]['name'], players[1]['name'], s1, s2, d1, d2)
+                    game_output, names[0], names[1], s1, s2, d1, d2)
                 
                 logging.info(f'Done game {game_num}, round: {round_number}, ({wp} vs {bp}): {res} ({termi})')
                 print(f'Done game {game_num}, round: {round_number}, ({wp} vs {bp}): {res} ({termi})')
                 
                 # Print result table.
-                name_len = max(8, max(len(players[0]['name']), len(players[1]['name'])))
+                name_len = max(8, max(len(names[0]), len(names[1])))
                 
                 print('\n%-*s %9s %9s %7s %7s %4s' % (
                     name_len, 'name', 'score', 'games', 'score%', 'Draw%', 'tf'))
                 print('%-*s %9.1f %9d %7.1f %7.1f %4d' % (
-                    name_len, players[0]['name'], s1, num_res, 100*s1/num_res, 100*d1/num_res, tf1))
+                    name_len, names[0], s1, num_res, 100*s1/num_res, 100*d1/num_res, tf1))
                 print('%-*s %9.1f %9d %7.1f %7.1f %4d\n' % (
-                    name_len, players[1]['name'], s2, num_res, 100*s2/num_res, 100*d2/num_res, tf2))
+                    name_len, names[1], s2, num_res, 100*s2/num_res, 100*d2/num_res, tf2))
                 
             except Exception:
                 logging.exception('Exception in completed analysis.')
     
-    logging.info(f'Match: done, elapse: {(time.perf_counter() - time_start):0.0f}s')
-    print(f'Match: done, elapse: {(time.perf_counter() - time_start):0.0f}s')
+    elapse = time.perf_counter_ns() - time_start  # time delta in nano seconds
+    logging.info(f'Match: done, elapse: {get_time_h_mm_ss_ms(elapse)}')
+    print(f'Match: done, elapse: {get_time_h_mm_ss_ms(elapse)}')
     
     logging.shutdown()
     
