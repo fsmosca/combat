@@ -28,7 +28,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.10'
+APP_VERSION = 'v1.11'
 
 
 # Increase limit to fix RecursionError
@@ -117,7 +117,6 @@ class Timer():
             self.tf = True
         
         self.rem_time += self.itms - int(elapse)
-        logging.info(f'Updated remaining time: {self.rem_time:0.0f}')
 
 
 class Match():    
@@ -138,7 +137,7 @@ class Match():
         self.win_score_cp = win_score_cp
         self.win_score_count = win_score_count
 
-    def update_headers(self, game, board, wplayer, bplayer, score_adjudication):
+    def update_headers(self, game, board, wplayer, bplayer, score_adjudication, elapse):
         ga = chess.pgn.Game()
         g = ga.from_board(board)
         
@@ -200,6 +199,8 @@ class Match():
             f'{self.clock[1].btms/1000:0.0f}s+{self.clock[1].itms/1000:0.2f}s'
         game.headers['BlackTimeControl'] = \
             f'{self.clock[0].btms/1000:0.0f}s+{self.clock[0].itms/1000:0.2f}s'
+            
+        game.headers['GameDuration'] = get_time_h_mm_ss_ms(elapse)
 
         return game
     
@@ -326,12 +327,14 @@ class Match():
         game = game.from_board(end_board)
         node = game.end()
         
-        logging.info(f'Starting game {self.game_id} of {self.total_games}, round: {self.round_num}, ({self.eng_names[1]} vs {self.eng_names[0]})')
-        print(f'Starting game {self.game_id} / {self.total_games}, round: {self.round_num}, ({self.eng_names[1]} vs {self.eng_names[0]})')
+        logging.info(f'Starting, game: {self.game_id} of {self.total_games}, round: {self.round_num}, players: {self.eng_names[1]} vs {self.eng_names[0]}')
+        print(f'Starting, game: {self.game_id} / {self.total_games}, round: {self.round_num}, players: {self.eng_names[1]} vs {self.eng_names[0]}')
         
         # First engine with index 0 will handle the black side.
         self.clock[1].rem_time = self.clock[1].btms
         self.clock[0].rem_time = self.clock[0].btms
+        
+        game_start = time.perf_counter_ns()
         
         # Play the game, till its over by python-chess
         while not board.is_game_over():
@@ -356,7 +359,7 @@ class Match():
             
             # If engine does not give time spent, calculate elapse time manually.
             if time_ms is None:
-                time_ms = (time.perf_counter_ns() - t1)/1000/1000  # from nano to ms
+                time_ms = (time.perf_counter_ns() - t1)//1000//1000  # from nano to ms
             time_ms = max(1, time_ms)  # If engine sent time below 1, use a minimum of 1ms
                 
             # Update time and determine if engine exceeds allocated time.
@@ -388,9 +391,12 @@ class Match():
         eng[0].quit()
         eng[1].quit()
         
-        game = self.update_headers(game, board, self.eng_names[1], self.eng_names[0], score_adjudication)
+        elapse = time.perf_counter_ns() - game_start        
+        game = self.update_headers(game, board, self.eng_names[1],
+                                   self.eng_names[0], score_adjudication,
+                                   elapse)
         
-        return [game, self.game_id, self.round_num, self.time_forfeit]
+        return [game, self.game_id, self.round_num, self.time_forfeit, elapse]
 
 
 def get_time_h_mm_ss_ms(time_ns, symbol=True):
@@ -446,13 +452,15 @@ def get_game_list(fn, max_round=500, randomize_pos=False):
     fn: can be a fen or an epd or a pgn file
     Return: a list of games
     """
-    logging.info('Preparing start openings...')
-    print('Preparing start openings...')
-    t1 = time.perf_counter()
+    t1 = time.perf_counter_ns()
     
     games = []
     
+    fn_filename = Path(fn).name
     file_suffix = Path(fn).suffix
+    
+    logging.info(f'Preparing start opening from {fn_filename} ...')
+    print(f'Preparing start opening from {fn_filename} ...')
     
     if file_suffix not in ['.pgn', '.fen', '.epd']:
         raise  Exception(f'File {fn} has no extension!, accepted file ext: .pgn, .fen, .epd')
@@ -480,15 +488,14 @@ def get_game_list(fn, max_round=500, randomize_pos=False):
     if randomize_pos:
         random.shuffle(games)
         
-    logging.info(f'elapse: {(time.perf_counter() - t1): 0.3f}s')
-    print(f'elapse: {(time.perf_counter() - t1): 0.3f}s')
+    elapse = time.perf_counter_ns() - t1
     
     if len(games) < max_round:
         logging.warning(f'Number of positions in the file {len(games)} are below max_round {max_round}!')
         print(f'Number of positions in the file {len(games)} are below max_round {max_round}!')
     
-    logging.info('Done preparing start openings!\n')
-    print('Done preparing start openings!\n')
+    logging.info(f'status: done, games prepared: {len(games)}, elapse: {get_time_h_mm_ss_ms(elapse)}\n')
+    print(f'status: done, games prepared: {len(games)}, elapse: {get_time_h_mm_ss_ms(elapse)}\n')
         
     return games
 
@@ -583,7 +590,12 @@ def read_engine_option(engine_option_value):
     return players, base_time_ms, inc_time_ms
 
     
-def main():    
+def main():   
+    print(f'{APP_NAME} {APP_VERSION}')
+    
+    # Variable that is not available yet in command line options
+    max_games_per_round = 2  # For each round, there is only 1 opening.
+    
     parser = argparse.ArgumentParser(
         prog='%s' % (APP_NAME),
         description='Run engine vs engine match',
@@ -684,31 +696,38 @@ def main():
     
     # Run game matches in parallel
     with ProcessPoolExecutor(max_workers=parallel) as executor:
-        game_id = 0
-        for game in games:
-            game_id += 1
+        game_id, round_num = 0, 0
+        
+        # Submit engine matches as job
+        for game in games:            
             round_num += 1
-            sub_round = 0.1
-            g = Match(
-                game, eng_files, eng_opts, names, clock,
-                round_num + sub_round if reverse_start_side else round_num,
-                total_games, game_id, win_adj, win_score_cp, win_score_count)
-            job = executor.submit(g.start_match)            
-            analysis.append(job)
+            sub_round, games_per_round_cnt, m, n = 0.0, 0, 0, 1
             
-            if reverse_start_side:
+            while True:
                 game_id += 1
                 sub_round += 0.1
-                swap_clock = [clock[1], clock[0]]
-                swap_eng_files = [eng_files[1], eng_files[0]]
-                swap_eng_opts = [eng_opts[1], eng_opts[0]]
-                swap_names = [players[1]['name'], players[0]['name']]
+                
                 g = Match(
-                    game, swap_eng_files, swap_eng_opts, swap_names,
-                    swap_clock, round_num + sub_round, total_games,
-                    game_id, win_adj, win_score_cp, win_score_count)
-                job = executor.submit(g.start_match)            
+                    game,
+                    [eng_files[m], eng_files[n]],
+                    [eng_opts[m], eng_opts[n]],
+                    [names[m], names[n]],
+                    [clock[m], clock[n]],
+                    round_num + sub_round if reverse_start_side else round_num,
+                    total_games, game_id,
+                    win_adj, win_score_cp, win_score_count)
+                
+                job = executor.submit(g.start_match)
                 analysis.append(job)
+                games_per_round_cnt += 1
+                
+                if not reverse_start_side:
+                    break
+                
+                if games_per_round_cnt >= max_games_per_round:
+                    break
+                
+                m, n = n, m  # Reverse the side
             
         # Process every game results
         for future in concurrent.futures.as_completed(analysis):
@@ -717,6 +736,7 @@ def main():
                 game_num = future.result()[1]
                 round_number = future.result()[2]
                 time_forfeit_counts = future.result()[3]
+                game_elapse = future.result()[4]  # nanoseconds
                 
                 num_res += 1                
                 tf1 += time_forfeit_counts[0]
@@ -739,8 +759,10 @@ def main():
                 s1, s2, d1, d2 = update_score(
                     game_output, names[0], names[1], s1, s2, d1, d2)
                 
-                logging.info(f'Done game {game_num}, round: {round_number}, ({wp} vs {bp}): {res} ({termi})')
-                print(f'Done game {game_num}, round: {round_number}, ({wp} vs {bp}): {res} ({termi})')
+                logging.info(f'Done, game: {game_num}, round: {round_number}, ({wp} vs {bp}): {res} ({termi})')
+                print(f'Done, game: {game_num}, round: {round_number}, elapse: {get_time_h_mm_ss_ms(game_elapse)}')
+                print(f'players: {wp} vs {bp}')
+                print(f'result: {res} ({termi})')
                 
                 # Print result table.
                 name_len = max(8, max(len(names[0]), len(names[1])))
@@ -755,7 +777,7 @@ def main():
             except Exception:
                 logging.exception('Exception in completed analysis.')
     
-    elapse = time.perf_counter_ns() - time_start  # time delta in nano seconds
+    elapse = time.perf_counter_ns() - time_start  # time delta in nanoseconds
     logging.info(f'Match: done, elapse: {get_time_h_mm_ss_ms(elapse)}')
     print(f'Match: done, elapse: {get_time_h_mm_ss_ms(elapse)}')
     
