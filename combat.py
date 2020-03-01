@@ -28,7 +28,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.12'
+APP_VERSION = 'v1.13'
 
 
 # Increase limit to fix RecursionError
@@ -722,8 +722,6 @@ def main():
         except Exception:
             logging.exception('Exception occurs in getting engine data from engine config file!')
             raise Exception('Exception occurs in getting engine data!')
-    
-    names = [players[0]['name'], players[1]['name']]
     
     # Init vars for game matches and results
     scores = {names[0]: {'score': 0, 'draws': 0, 'tf': 0},
