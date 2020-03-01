@@ -28,7 +28,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.11'
+APP_VERSION = 'v1.12'
 
 
 # Increase limit to fix RecursionError
@@ -196,9 +196,9 @@ class Match():
         game.headers['Black'] = bplayer
         
         game.headers['WhiteTimeControl'] = \
-            f'{self.clock[1].btms/1000:0.0f}s+{self.clock[1].itms/1000:0.2f}s'
+            f'{get_time_h_mm_ss_ms(self.clock[1].btms*1000000)} + {get_time_h_mm_ss_ms(self.clock[1].itms*1000000, True)}'
         game.headers['BlackTimeControl'] = \
-            f'{self.clock[0].btms/1000:0.0f}s+{self.clock[0].itms/1000:0.2f}s'
+            f'{get_time_h_mm_ss_ms(self.clock[0].btms*1000000)} + {get_time_h_mm_ss_ms(self.clock[0].itms*1000000, True)}'
             
         game.headers['GameDuration'] = get_time_h_mm_ss_ms(elapse)
 
@@ -373,8 +373,8 @@ class Match():
 
             # Stop the game if time limit is exceeded.
             if self.clock[board.turn].tf:
-                logging.warning(f'round: {self.round_num}, {"white" if not board.turn else "black"} loses on time!')
-                print(f'round: {self.round_num}, {"white" if not board.turn else "black"} loses on time!')
+                logging.warning(f'round: {self.round_num}, infraction: {"white" if board.turn else "black"} loses on time!')
+                print(f'round: {self.round_num}, infraction: {"white" if board.turn else "black"} loses on time!')
                 break
                 
             # Update the board with the move for next player
@@ -396,10 +396,10 @@ class Match():
                                    self.eng_names[0], score_adjudication,
                                    elapse)
         
-        return [game, self.game_id, self.round_num, self.time_forfeit, elapse]
+        return [game, self.game_id, self.round_num, elapse]
 
 
-def get_time_h_mm_ss_ms(time_ns, symbol=True):
+def get_time_h_mm_ss_ms(time_ns, mmssms = False):
         """
         Converts time delta to hh:mm:ss:ms format.
         
@@ -411,38 +411,82 @@ def get_time_h_mm_ss_ms(time_ns, symbol=True):
         m, s = divmod(s, 60)
         h, m = divmod(m, 60)
 
-        if not symbol:
-            return '{:01d}h:{:02d}m:{:02d}s:{:03d}'.format(h, m, s, ms)
+        if mmssms:
+            return '{:02d}m:{:02d}s:{:03d}ms'.format(m, s, ms)
         return '{:01d}h:{:02d}m:{:02d}s:{:03d}ms'.format(h, m, s, ms)
     
+    
+def print_result_table(scores, num_res):
+    tname = [None, None]
+    tname[0] = list(scores.keys())[0]
+    tname[1] = list(scores.keys())[1]
+    
+    name_len = max(8, max(len(tname[0]), len(tname[1])))
+    
+    # Result table header
+    print('\n%-*s %9s %9s %7s %7s %4s' % (
+        name_len, 'name', 'score', 'games', 'score%', 'Draw%', 'tf'))
+    
+    # Table data
+    for i in range(len(tname)):
+        print('%-*s %9.1f %9d %7.1f %7.1f %4d' % (
+            name_len,
+            tname[i],
+            scores[tname[i]]['score'],
+            num_res,
+            100*scores[tname[i]]['score']/num_res,
+            100*scores[tname[i]]['draws']/num_res,
+            scores[tname[i]]['tf']))
+    print()
+    
 
-def update_score(g, n1, n2, s1, s2, d1, d2):
+def update_score(g, scores):
     """ 
-    n1, n2 are engine names
-    s1, s2 are scores
-    d1, d2 are number of draws
+    scores = {names[0]: {'score': 0, 'draws': 0, 'tf': 0},
+              names[1]: {'score': 0, 'draws': 0, 'tf': 0}}
     """
     res = g.headers['Result']
     wp = g.headers['White']
     bp = g.headers['Black']
+    termi = g.headers['Termination']
     
-    if res == '1-0':
+    n1 = list(scores.keys())[0]
+    n2 = list(scores.keys())[1]
+    s1 = scores[n1]['score']
+    s2 = scores[n2]['score']
+    d1 = scores[n1]['draws']
+    d2 = scores[n2]['draws']
+    tf1 = scores[n1]['tf']
+    tf2 = scores[n2]['tf']
+    
+    if res == '1-0':        
         if wp == n1:
             s1 += 1
+            if termi == 'time forfeit':
+                tf2 += 1
         elif wp == n2:
             s2 += 1
+            if termi == 'time forfeit':
+                tf1 += 1
     elif res == '0-1':
         if bp == n1:
             s1 += 1
+            if termi == 'time forfeit':
+                tf2 += 1
         elif bp == n2:
             s2 += 1
+            if termi == 'time forfeit':
+                tf1 += 1
     elif res == '1/2-1/2':
         s1 += 0.5
         s2 += 0.5
         d1 += 1
         d2 += 1
         
-    return s1, s2, d1, d2
+    scores = {n1: {'score': s1, 'draws': d1, 'tf': tf1},
+              n2: {'score': s2, 'draws': d2, 'tf': tf2}}
+        
+    return scores
 
 
 def get_game_list(fn, max_round=500, randomize_pos=False):
@@ -679,8 +723,11 @@ def main():
             logging.exception('Exception occurs in getting engine data from engine config file!')
             raise Exception('Exception occurs in getting engine data!')
     
-    # Init vars, s for score, d for draw, tf for time forfeit
-    s1, s2, d1, d2, tf1, tf2 = 0, 0, 0, 0, 0, 0
+    names = [players[0]['name'], players[1]['name']]
+    
+    # Init vars for game matches and results
+    scores = {names[0]: {'score': 0, 'draws': 0, 'tf': 0},
+              names[1]: {'score': 0, 'draws': 0, 'tf': 0}}
     analysis, round_num, num_res = [], 0, 0
     
     time_start = time.perf_counter_ns()
@@ -692,9 +739,11 @@ def main():
                            randomize_pos, parallel, base_time_ms, inc_time_ms,
                            win_adj, win_score_cp, win_score_count)
     
-    names = [players[0]['name'], players[1]['name']]
-    
     # Run game matches in parallel
+    if parallel < 1:
+        print(f'Warning, parallel is only {parallel}!, now it set at 1.')
+        parallel = 1
+
     with ProcessPoolExecutor(max_workers=parallel) as executor:
         game_id, round_num = 0, 0
         
@@ -735,12 +784,9 @@ def main():
                 game_output = future.result()[0]
                 game_num = future.result()[1]
                 round_number = future.result()[2]
-                time_forfeit_counts = future.result()[3]
-                game_elapse = future.result()[4]  # nanoseconds
+                game_elapse = future.result()[3]  # nanoseconds
                 
-                num_res += 1                
-                tf1 += time_forfeit_counts[0]
-                tf2 += time_forfeit_counts[1]
+                num_res += 1
                 
                 wp = game_output.headers['White']
                 bp = game_output.headers['Black']
@@ -756,24 +802,15 @@ def main():
                 # Save games to a file
                 print(game_output, file=open(outpgn, 'a'), end='\n\n')
                 
-                s1, s2, d1, d2 = update_score(
-                    game_output, names[0], names[1], s1, s2, d1, d2)
+                scores = update_score(game_output, scores)
                 
                 logging.info(f'Done, game: {game_num}, round: {round_number}, ({wp} vs {bp}): {res} ({termi})')
                 print(f'Done, game: {game_num}, round: {round_number}, elapse: {get_time_h_mm_ss_ms(game_elapse)}')
                 print(f'players: {wp} vs {bp}')
                 print(f'result: {res} ({termi})')
                 
-                # Print result table.
-                name_len = max(8, max(len(names[0]), len(names[1])))
-                
-                print('\n%-*s %9s %9s %7s %7s %4s' % (
-                    name_len, 'name', 'score', 'games', 'score%', 'Draw%', 'tf'))
-                print('%-*s %9.1f %9d %7.1f %7.1f %4d' % (
-                    name_len, names[0], s1, num_res, 100*s1/num_res, 100*d1/num_res, tf1))
-                print('%-*s %9.1f %9d %7.1f %7.1f %4d\n' % (
-                    name_len, names[1], s2, num_res, 100*s2/num_res, 100*d2/num_res, tf2))
-                
+                print_result_table(scores, num_res)
+
             except Exception:
                 logging.exception('Exception in completed analysis.')
     
