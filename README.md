@@ -14,7 +14,8 @@ usage: combat [-h] --engine-config-file ENGINE_CONFIG_FILE --engine
               [ENGINE [ENGINE ...]] --opening [OPENING [OPENING ...]]
               [--round ROUND] [--reverse] [--parallel PARALLEL]
               [--win-adjudication [WIN_ADJUDICATION [WIN_ADJUDICATION ...]]]
-              [--output OUTPUT] [-v]
+              [--output OUTPUT] [--log-filename LOG_FILENAME] [--engine-log]
+              [-v]
 
 Run engine vs engine match
 
@@ -58,7 +59,7 @@ optional arguments:
                         or to not use random
                         --opening file="d:/chess/opening.epd" random=false
   --round ROUND         number of games to play, twice if reverse is true
-  --reverse             A flag when when set, changes start side, to play a position.
+  --reverse             A flag to reverse start side.
   --parallel PARALLEL   Option to run game matches in parallel
                         example:
                         --parallel 1
@@ -75,9 +76,12 @@ optional arguments:
                             score: engine score in cp
                             count: number of times the score is recorded
   --output OUTPUT       Save output games, default=output_games.pgn
+  --log-filename LOG_FILENAME
+                        A filename to save its logs. default=combat_log.txt
+  --engine-log          A flag to save engine log to a file.
   -v, --version         show program's version number and exit
 
-combat v1.6
+combat v1.14
 ```
 
 #### 2. Command line
@@ -90,6 +94,12 @@ combat.py --engine-config-file combat.json ^
 --win-adjudication score=700 count=4 ^
 --parallel 1
 ```
+
+To enable engine logging and saved in engine_log.txt, use the --engine-log flag.  
+`combat.py --engine-config-name ... --engine-log`
+
+All logs are saved in combat_log.txt, to save in a different log, use the --log-filename option.  
+`combat.py --engine-config-name ... --log-filename mylog.txt`
 
 Also check the windows batch file run_combat.bat which can be found in this repo. You can modify and run it.
 
@@ -243,6 +253,58 @@ Deuterium v2019.2 mobility130       7.0        12    58.3    33.3    0
 Deuterium v2019.2                   5.0        12    41.7    33.3    0
 
 Match: done, elapse: 0h:00m:39s:303ms
+```
+
+#### 5. Sample logs from combat_log.txt
+```
+2020-03-02 12:55:45,169 -     get_game_list -     INFO - Preparing start opening from grand_swiss_2019_6plies.epd ...
+2020-03-02 12:55:45,169 -     get_game_list -     INFO - status: done, games prepared: 8, elapse: 0h:00m:00s:003ms
+
+2020-03-02 12:55:45,169 -  match_conditions -     INFO - rounds           : 8
+2020-03-02 12:55:45,169 -  match_conditions -     INFO - reverse side     : True
+2020-03-02 12:55:45,169 -  match_conditions -     INFO - total games      : 16
+2020-03-02 12:55:45,169 -  match_conditions -     INFO - opening file     : grand_swiss_2019_6plies.epd
+2020-03-02 12:55:45,169 -  match_conditions -     INFO - randomize fen    : True
+2020-03-02 12:55:45,169 -  match_conditions -     INFO - base time(ms)    : 5000
+2020-03-02 12:55:45,169 -  match_conditions -     INFO - inc time(ms)     : 50
+2020-03-02 12:55:45,169 -  match_conditions -     INFO - win adjudication : True
+2020-03-02 12:55:45,169 -  match_conditions -     INFO - win score cp     : 700
+2020-03-02 12:55:45,169 -  match_conditions -     INFO - win score count  : 4
+2020-03-02 12:55:45,169 -  match_conditions -     INFO - parallel         : 7
+
+2020-03-02 12:55:46,123 - Match.start_match -    DEBUG - Create end board from fen: rnbqkb1r/ppp2ppp/4pn2/3p4/2PP4/2N5/PP2PPPP/R1BQKBNR w KQkq - 0 1
+2020-03-02 12:55:46,123 - Match.start_match -     INFO - Starting, game: 1 / 16, round: 1.1, players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+2020-03-02 12:55:46,326 - Match.start_match -    DEBUG - Create end board from fen: rnbqkb1r/ppp2ppp/4pn2/3p4/2PP4/2N5/PP2PPPP/R1BQKBNR w KQkq - 0 1
+2020-03-02 12:55:46,326 - Match.start_match -     INFO - Starting, game: 2 / 16, round: 1.2, players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+2020-03-02 12:55:46,498 - Match.start_match -    DEBUG - Create end board from fen: rnbqkb1r/pp1p1ppp/4pn2/2p5/2PP4/5N2/PP2PPPP/RNBQKB1R w KQkq - 0 1
+2020-03-02 12:55:46,498 - Match.start_match -     INFO - Starting, game: 3 / 16, round: 2.1, players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+2020-03-02 12:55:46,498 - Match.start_match -    DEBUG - Create end board from fen: rnbqkb1r/ppp2ppp/4pn2/3p4/2PP4/5N2/PP2PPPP/RNBQKB1R w KQkq - 0 1
+2020-03-02 12:55:46,498 - Match.start_match -     INFO - Starting, game: 6 / 16, round: 3.2, players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+2020-03-02 12:55:46,545 - Match.start_match -    DEBUG - Create end board from fen: rnbqkb1r/ppp2ppp/4pn2/3p4/2PP4/5N2/PP2PPPP/RNBQKB1R w KQkq - 0 1
+2020-03-02 12:55:46,545 - Match.start_match -     INFO - Starting, game: 5 / 16, round: 3.1, players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+2020-03-02 12:55:46,623 - Match.start_match -    DEBUG - Create end board from fen: rnbqkb1r/ppp2ppp/4pn2/3p4/2PP4/6P1/PP2PP1P/RNBQKBNR w KQkq - 0 1
+2020-03-02 12:55:46,623 - Match.start_match -     INFO - Starting, game: 7 / 16, round: 4.1, players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+2020-03-02 12:55:46,638 - Match.start_match -    DEBUG - Create end board from fen: rnbqkb1r/pp1p1ppp/4pn2/2p5/2PP4/5N2/PP2PPPP/RNBQKB1R w KQkq - 0 1
+2020-03-02 12:55:46,638 - Match.start_match -     INFO - Starting, game: 4 / 16, round: 2.2, players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+2020-03-02 12:55:53,593 -      adjudication -    DEBUG - White wins by adjudication. White last 4 scores: [846, 845, 819, 853], Black last 4 scores: [-838, -820, -862, -841]
+2020-03-02 12:55:53,639 -              main -     INFO - Done, game: 5, round: 3.1, elapse: 0h:00m:07s:072ms
+2020-03-02 12:55:53,639 -              main -     INFO - players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+2020-03-02 12:55:53,639 -              main -     INFO - result: 1-0 (adjudication: good score for white)
+2020-03-02 12:55:53,639 -      result_table -     INFO - 
+2020-03-02 12:55:53,639 -      result_table -     INFO - name                                 score     games  score%   Draw%   tf
+2020-03-02 12:55:53,639 -      result_table -     INFO - Deuterium v2019.2 mobility130          0.0         1     0.0     0.0    0
+2020-03-02 12:55:53,639 -      result_table -     INFO - Deuterium v2019.2                      1.0         1   100.0     0.0    0
+2020-03-02 12:55:53,639 -      result_table -     INFO - 
+2020-03-02 12:55:53,936 - Match.start_match -    DEBUG - Create end board from fen: rnbqkb1r/ppp2ppp/4pn2/3p4/2PP4/6P1/PP2PP1P/RNBQKBNR w KQkq - 0 1
+2020-03-02 12:55:53,936 - Match.start_match -     INFO - Starting, game: 8 / 16, round: 4.2, players: Deuterium v2019.2 mobility130 vs Deuterium v2019.2
+2020-03-02 12:55:55,218 -      adjudication -    DEBUG - White wins by adjudication. White last 4 scores: [737, 906, 950, 1089], Black last 4 scores: [-794, -1021, -1094, -1303]
+2020-03-02 12:55:55,264 -              main -     INFO - Done, game: 3, round: 2.1, elapse: 0h:00m:08s:749ms
+2020-03-02 12:55:55,280 -              main -     INFO - players: Deuterium v2019.2 vs Deuterium v2019.2 mobility130
+2020-03-02 12:55:55,280 -              main -     INFO - result: 1-0 (adjudication: good score for white)
+2020-03-02 12:55:55,280 -      result_table -     INFO - 
+2020-03-02 12:55:55,280 -      result_table -     INFO - name                                 score     games  score%   Draw%   tf
+2020-03-02 12:55:55,280 -      result_table -     INFO - Deuterium v2019.2 mobility130          0.0         2     0.0     0.0    0
+2020-03-02 12:55:55,280 -      result_table -     INFO - Deuterium v2019.2                      2.0         2   100.0     0.0    0
 ```
 
 ### Features
