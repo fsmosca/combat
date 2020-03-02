@@ -29,7 +29,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.14'
+APP_VERSION = 'v1.15'
 
 
 # Increase limit to fix RecursionError
@@ -699,6 +699,17 @@ def read_engine_option(engine_option_value):
     
     return players, base_time_ms, inc_time_ms
 
+
+def delete_file(*fns):
+    """
+    Delete tuple elements in fns.
+    """
+    for fn in fns:        
+        try:
+            os.remove(fn)
+        except OSError:
+            pass
+
     
 def main():    
     # Variable that is not available yet in command line options
@@ -742,20 +753,8 @@ def main():
     engine_log_fn = 'engine_log.txt'
     is_pc_logger = args.engine_log
     
-    # Delete existing log files, not log files are in append mode.
-    try:
-        os.remove(log_fn)
-    except OSError:
-        pass
-    except Exception:
-        raise Exception(f'Exception in deleting {log_fn}')
-        
-    try:
-        os.remove(engine_log_fn)
-    except OSError:
-        pass
-    except Exception:
-        raise Exception(f'Exception in deleting {engine_log_fn}')
+    # Delete existing log files everytime combat is run.
+    delete_file(log_fn, engine_log_fn)
     
     logger = setup_logging(main.__name__, log_fn)
     
