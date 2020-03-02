@@ -12,6 +12,7 @@ Tested on:
 """
 
 
+import os
 import sys
 import concurrent.futures
 from concurrent.futures import ProcessPoolExecutor
@@ -28,19 +29,16 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.13'
+APP_VERSION = 'v1.14'
 
 
 # Increase limit to fix RecursionError
 sys.setrecursionlimit(10000)  
 
 
-# Change log level to logging.DEBUG to enable engine logging by python-chess.
-# Change log level to logging.info to see combat logging.
-# Set log level to logging.CRITICAL to only get critical logging.
-log_level = logging.CRITICAL
-log_format = '%(asctime)s - %(levelname)5s - %(message)s'    
-logging.basicConfig(filename='combat_logging.log', filemode='w', level=log_level, format=log_format)
+# Save created loggers to be used later when creating other loggers, making
+# sure that logger has no duplicates to avoid double entries in the logs.
+saved_loggers = {}
 
 
 # Formated help Messages for parser
@@ -108,12 +106,13 @@ class Timer():
         self.rem_time = btms
         self.tf = False  # tf is time forfeit
         
-    def update_time(self, elapse):
+    def update_time(self, elapse, log_fn):
         """ 
         elapse: time in ms spent on a search
-        """        
+        """  
+        logger = setup_logging('update_time', log_fn)
         if self.rem_time - int(elapse) < 1:
-            logging.warning('Remaining time is below 1ms before adding the increment!')
+            logger.warning('Remaining time is below 1ms before adding the increment!')
             self.tf = True
         
         self.rem_time += self.itms - int(elapse)
@@ -121,8 +120,8 @@ class Timer():
 
 class Match():    
     def __init__(self, start_game, eng_files, eng_opts, eng_names, clock,
-                 round_num, total_games, game_id, adjudication=False,
-                 win_score_cp=700, win_score_count=4):
+                 round_num, total_games, game_id, log_fn, adjudication=False,
+                 win_score_cp=700, win_score_count=4, is_pc_logger=False):
         self.start_game = start_game
         self.eng_files = eng_files
         self.eng_opts = eng_opts
@@ -133,9 +132,11 @@ class Match():
         self.time_forfeit = [False, False]
         self.write_time_forfeit_result = True
         self.game_id = game_id
+        self.log_fn = log_fn
         self.adjudication = adjudication
         self.win_score_cp = win_score_cp
         self.win_score_count = win_score_count
+        self.is_pc_logger = is_pc_logger  # pc is python-chess
 
     def update_headers(self, game, board, wplayer, bplayer, score_adjudication, elapse):
         ga = chess.pgn.Game()
@@ -205,15 +206,16 @@ class Match():
         return game
     
     def get_search_info(self, result, info):
+        logger = setup_logging('search_info', self.log_fn)
         if info == 'score':
             score = None
             try:
                 score = result.info[info].relative.score(mate_score=32000)
             except KeyError as e:
-                logging.warning(e)
+                logger.warning(e)
             except Exception:
-                logging.exception(f'Exception in getting {info} from search info.')
-                logging.debug(result)
+                logger.exception(f'Exception in getting {info} from search info.')
+                logger.debug(result)
                 
             return score
         
@@ -222,10 +224,10 @@ class Match():
             try:
                 depth = result.info[info]
             except KeyError as e:
-                logging.warning(e)
+                logger.warning(e)
             except Exception:
-                logging.exception(f'Exception in getting {info} from search info.')
-                logging.debug(result)
+                logger.exception(f'Exception in getting {info} from search info.')
+                logger.exception(result)
                 
             return depth
         
@@ -234,10 +236,10 @@ class Match():
             try:
                 time = result.info[info] * 1000
             except KeyError as e:
-                logging.warning(e)
+                logger.warning(e)
             except Exception:
-                logging.exception(f'Exception in getting {info} from search info.')
-                logging.debug(result)
+                logger.exception(f'Exception in getting {info} from search info.')
+                logger.debug(result)
                 
             return time
         
@@ -246,10 +248,10 @@ class Match():
             try:
                 nodes = result.info[info]
             except KeyError as e:
-                logging.warning(e)
+                logger.warning(e)
             except Exception:
-                logging.exception(f'Exception in getting {info} from search info.')
-                logging.debug(result)
+                logger.exception(f'Exception in getting {info} from search info.')
+                logger.debug(result)
                 
             return nodes
         
@@ -268,6 +270,8 @@ class Match():
             [False, True] if game is good for white
             [False, False] if game is not to be adjudicated
         """
+        logger = setup_logging('adjudication', self.log_fn)
+        
         n = self.win_score_count  # Default 4
         w = self.win_score_cp  # Default 700
         ret = [False, False]  # [Black, white]
@@ -286,6 +290,7 @@ class Match():
                 b_bad_cnt += 1
                 
         if w_good_cnt >= n and b_bad_cnt >= n:
+            logger.debug(f'White wins by adjudication. White last {n} scores: {wscores[-n:]}, Black last {n} scores: {bscores[-n:]}')
             return [False, True]
         
         # (2) Black wins
@@ -299,11 +304,18 @@ class Match():
                 w_bad_cnt += 1
                 
         if b_good_cnt >= n and w_bad_cnt >= n:
+            logger.debug(f'Black wins by adjudication. Black last {n} scores: {bscores[-n:]}, White last {n} scores: {wscores[-n:]}')
             return [True, False]
         
         return ret
     
     def start_match(self):
+        logger = setup_logging('Match.start_match', self.log_fn)
+        
+        # Enable python-chess module engine logger, saved in a different file.
+        if self.is_pc_logger:
+            setup_logging('chess.engine', 'engine_log.txt')
+        
         # Save score info per move from both engines for score adjudications
         eng_score = {0: [], 1: []}
         score_adjudication = [False, False]
@@ -317,18 +329,18 @@ class Match():
         for k, v in self.eng_opts[1].items():
             eng[1].configure({k: v})           
         
-        # Create a board which will be played by engines.
+        # Create a board which will be played by engines.        
         end_node = self.start_game.end()
         end_board = end_node.board()
         board = end_board.copy()
+        logger.debug(f'Create end board from fen: {board.fen()}')
         
         # Create a game for annotated game output.
         game = chess.pgn.Game()
         game = game.from_board(end_board)
         node = game.end()
-        
-        logging.info(f'Starting, game: {self.game_id} of {self.total_games}, round: {self.round_num}, players: {self.eng_names[1]} vs {self.eng_names[0]}')
-        print(f'Starting, game: {self.game_id} / {self.total_games}, round: {self.round_num}, players: {self.eng_names[1]} vs {self.eng_names[0]}')
+                
+        logger.info(f'Starting, game: {self.game_id} / {self.total_games}, round: {self.round_num}, players: {self.eng_names[1]} vs {self.eng_names[0]}')
         
         # First engine with index 0 will handle the black side.
         self.clock[1].rem_time = self.clock[1].btms
@@ -363,7 +375,7 @@ class Match():
             time_ms = max(1, time_ms)  # If engine sent time below 1, use a minimum of 1ms
                 
             # Update time and determine if engine exceeds allocated time.
-            self.clock[board.turn].update_time(time_ms)
+            self.clock[board.turn].update_time(time_ms, self.log_fn)
             self.time_forfeit[board.turn] = self.clock[board.turn].tf
             
             # Save move and comment in pgn output file.               
@@ -373,10 +385,9 @@ class Match():
 
             # Stop the game if time limit is exceeded.
             if self.clock[board.turn].tf:
-                logging.warning(f'round: {self.round_num}, infraction: {"white" if board.turn else "black"} loses on time!')
-                print(f'round: {self.round_num}, infraction: {"white" if board.turn else "black"} loses on time!')
+                logger.info(f'round: {self.round_num}, infraction: {"white" if board.turn else "black"} loses on time!')
                 break
-                
+            
             # Update the board with the move for next player
             board.push(result.move) 
             
@@ -397,6 +408,57 @@ class Match():
                                    elapse)
         
         return [game, self.game_id, self.round_num, elapse]
+    
+    
+def setup_logging(name, log_fn='combat_log.txt'):
+    """
+    Creates logger by name, all logs will be written to log file
+    combat_log.txt, depending on the logging level.
+    
+    At the current setting below the following will be followed:
+    * Logging debug levels will be written only to log file.
+    * Logging info levels and above will be written to console and log file.
+    """
+    global saved_loggers
+    
+    # Use logging.WARNING to disable most logging into the log file.
+    # Todo: Make this available via command line options.
+    combat_file_log_level = logging.DEBUG
+    
+    # Do not create the same logger, to avoid double log entries    
+    if saved_loggers.get(name):
+        return saved_loggers.get(name)
+    
+    logger = logging.getLogger(name)    
+    logger.setLevel(logging.DEBUG)
+    
+    # Create file handler to write logs to a file
+    fh = logging.FileHandler(filename=log_fn, mode='a')
+    
+    if name == 'chess.engine':
+        fh.setLevel(logging.DEBUG)
+    else:
+        fh.setLevel(combat_file_log_level)
+    
+    # Create console handler for console logging
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO)
+    
+    # Create formatter and add it to the handlers
+    fh_formatter = logging.Formatter('%(asctime)s - %(name)17s - %(levelname)8s - %(message)s')
+    ch_formatter = logging.Formatter('%(message)s')
+    
+    # Set formats for each handler
+    fh.setFormatter(fh_formatter)
+    ch.setFormatter(ch_formatter)
+    
+    # Add handlers to logger
+    logger.addHandler(ch)
+    logger.addHandler(fh)
+    
+    saved_loggers[name] = logger
+    
+    return logger
 
 
 def get_time_h_mm_ss_ms(time_ns, mmssms = False):
@@ -416,28 +478,31 @@ def get_time_h_mm_ss_ms(time_ns, mmssms = False):
         return '{:01d}h:{:02d}m:{:02d}s:{:03d}ms'.format(h, m, s, ms)
     
     
-def print_result_table(scores, num_res):
+def print_result_table(scores, num_res, log_fn):
+    logger = setup_logging('result_table', log_fn)
+    
     tname = [None, None]
     tname[0] = list(scores.keys())[0]
     tname[1] = list(scores.keys())[1]
     
-    name_len = max(8, max(len(tname[0]), len(tname[1])))
+    # name_len = max(8, max(len(tname[0]), len(tname[1])))
     
     # Result table header
-    print('\n%-*s %9s %9s %7s %7s %4s' % (
-        name_len, 'name', 'score', 'games', 'score%', 'Draw%', 'tf'))
+    logger.info('')
+    logger.info('%-32s %9s %9s %7s %7s %4s' % (
+        'name', 'score', 'games', 'score%', 'Draw%', 'tf'))
     
     # Table data
     for i in range(len(tname)):
-        print('%-*s %9.1f %9d %7.1f %7.1f %4d' % (
-            name_len,
+        logger.info('%-32s %9.1f %9d %7.1f %7.1f %4d' % (
             tname[i],
             scores[tname[i]]['score'],
             num_res,
             100*scores[tname[i]]['score']/num_res,
             100*scores[tname[i]]['draws']/num_res,
             scores[tname[i]]['tf']))
-    print()
+        
+    logger.info('')
     
 
 def update_score(g, scores):
@@ -489,13 +554,15 @@ def update_score(g, scores):
     return scores
 
 
-def get_game_list(fn, max_round=500, randomize_pos=False):
+def get_game_list(fn, log_fn, max_round=500, randomize_pos=False):
     """ 
     Converts fn file into python-chess game objects.
     
     fn: can be a fen or an epd or a pgn file
     Return: a list of games
     """
+    logger = setup_logging(get_game_list.__name__, log_fn)
+    
     t1 = time.perf_counter_ns()
     
     games = []
@@ -503,8 +570,7 @@ def get_game_list(fn, max_round=500, randomize_pos=False):
     fn_filename = Path(fn).name
     file_suffix = Path(fn).suffix
     
-    logging.info(f'Preparing start opening from {fn_filename} ...')
-    print(f'Preparing start opening from {fn_filename} ...')
+    logger.info(f'Preparing start opening from {fn_filename} ...')
     
     if file_suffix not in ['.pgn', '.fen', '.epd']:
         raise  Exception(f'File {fn} has no extension!, accepted file ext: .pgn, .fen, .epd')
@@ -535,32 +601,31 @@ def get_game_list(fn, max_round=500, randomize_pos=False):
     elapse = time.perf_counter_ns() - t1
     
     if len(games) < max_round:
-        logging.warning(f'Number of positions in the file {len(games)} are below max_round {max_round}!')
-        print(f'Number of positions in the file {len(games)} are below max_round {max_round}!')
-    
-    logging.info(f'status: done, games prepared: {len(games)}, elapse: {get_time_h_mm_ss_ms(elapse)}\n')
-    print(f'status: done, games prepared: {len(games)}, elapse: {get_time_h_mm_ss_ms(elapse)}\n')
+        logger.info(f'Number of positions in the file {len(games)} are below max_round {max_round}!')
+    logger.info(f'status: done, games prepared: {len(games)}, elapse: {get_time_h_mm_ss_ms(elapse)}\n')
         
     return games
 
 
 def print_match_conditions(max_round, reverse_start_side, opening_file,
                            randomize_pos, parallel, base_time_ms, inc_time_ms,
-                           adjudication, win_score_cp, win_score_count):
-    print(f'rounds           : {max_round}')
-    print(f'reverse side     : {reverse_start_side}')
-    print(f'total games      : {max_round*2 if reverse_start_side else max_round}')
-    print(f'opening file     : {opening_file}')
-    print(f'randomize fen    : {randomize_pos}')        
-    print(f'base time(ms)    : {base_time_ms}')
-    print(f'inc time(ms)     : {inc_time_ms}')    
-    print(f'win adjudication : {adjudication}')
-    print(f'win score cp     : {win_score_cp}')
-    print(f'win score count  : {win_score_count}')
-    print(f'parallel         : {parallel}\n')
+                           adjudication, win_score_cp, win_score_count, log_fn):
+    logger = setup_logging('match_conditions', log_fn)
+    
+    logger.info(f'rounds           : {max_round}')
+    logger.info(f'reverse side     : {reverse_start_side}')
+    logger.info(f'total games      : {max_round*2 if reverse_start_side else max_round}')
+    logger.info(f'opening file     : {opening_file}')
+    logger.info(f'randomize fen    : {randomize_pos}')        
+    logger.info(f'base time(ms)    : {base_time_ms}')
+    logger.info(f'inc time(ms)     : {inc_time_ms}')    
+    logger.info(f'win adjudication : {adjudication}')
+    logger.info(f'win score cp     : {win_score_cp}')
+    logger.info(f'win score count  : {win_score_count}')
+    logger.info(f'parallel         : {parallel}\n')
     
     
-def get_engine_data(fn, ename):
+def get_engine_data(fn, ename, log_fn):
     """
     Read engine json file to get options etc. of ename.
     
@@ -568,6 +633,7 @@ def get_engine_data(fn, ename):
     ename: engine config name to search
     return: eng path and file and its options that are not default
     """
+    logger = setup_logging('engine_data', log_fn)
     path_file = None
     opt = {}
     
@@ -595,7 +661,7 @@ def get_engine_data(fn, ename):
                     except KeyError:
                         continue
                     except Exception:
-                        logging.exception('Error in getting default option value!')
+                        logger.exception('Error in getting default option value!')
                         continue
                         
                     opt_value = o['value']
@@ -634,9 +700,7 @@ def read_engine_option(engine_option_value):
     return players, base_time_ms, inc_time_ms
 
     
-def main():   
-    print(f'{APP_NAME} {APP_VERSION}')
-    
+def main():    
     # Variable that is not available yet in command line options
     max_games_per_round = 2  # For each round, there is only 1 opening.
     
@@ -653,13 +717,17 @@ def main():
     parser.add_argument('--round', default=500, type=int,
                         help='number of games to play, twice if reverse is true')
     parser.add_argument('--reverse', action='store_true',
-                        help='A flag when when set, changes start side, to play a position.')
+                        help='A flag to reverse start side.')
     parser.add_argument('--parallel', default=1, type=int, required=False,
                         help=parallel_help)
     parser.add_argument('--win-adjudication', nargs='*', required=False,
                         help=win_adjudication_help)
     parser.add_argument('--output', default='output_games.pgn',
                         help='Save output games, default=output_games.pgn')
+    parser.add_argument('--log-filename', default='combat_log.txt',
+                        help='A filename to save its logs. default=combat_log.txt')
+    parser.add_argument('--engine-log', action='store_true',
+                        help='A flag to save engine log to a file.')
     parser.add_argument('-v', '--version', action='version',
                         version='%(prog)s ' + APP_VERSION)
     
@@ -668,6 +736,28 @@ def main():
     parallel = args.parallel  
     max_round = args.round
     reverse_start_side = args.reverse
+    
+    # Init logging
+    log_fn = args.log_filename
+    engine_log_fn = 'engine_log.txt'
+    is_pc_logger = args.engine_log
+    
+    # Delete existing log files, not log files are in append mode.
+    try:
+        os.remove(log_fn)
+    except OSError:
+        pass
+    except Exception:
+        raise Exception(f'Exception in deleting {log_fn}')
+        
+    try:
+        os.remove(engine_log_fn)
+    except OSError:
+        pass
+    except Exception:
+        raise Exception(f'Exception in deleting {engine_log_fn}')
+    
+    logger = setup_logging(main.__name__, log_fn)
     
     clock = []  # clock[Timer(), Timer()] index 0 is for black
     
@@ -716,11 +806,11 @@ def main():
     eng_files, eng_opts = [None] * len(names), [None] * len(names)
     for i in range(len(names)):
         try:
-            eng_files[i], eng_opts[i] = get_engine_data(engine_json, names[i])
+            eng_files[i], eng_opts[i] = get_engine_data(engine_json, names[i], log_fn)
         except TypeError:
             raise Exception(f'engine {i+1} name cannot be found in engine config file!')
         except Exception:
-            logging.exception('Exception occurs in getting engine data from engine config file!')
+            logger.exception('Exception occurs in getting engine data from engine config file!')
             raise Exception('Exception occurs in getting engine data!')
     
     # Init vars for game matches and results
@@ -730,23 +820,24 @@ def main():
     
     time_start = time.perf_counter_ns()
     
-    games = get_game_list(opening_file, max_round, randomize_pos)    
+    games = get_game_list(opening_file, log_fn, max_round, randomize_pos)
+        
     total_games = len(games) * 2 if reverse_start_side else len(games)
     
     print_match_conditions(len(games), reverse_start_side, opening_file,
                            randomize_pos, parallel, base_time_ms, inc_time_ms,
-                           win_adj, win_score_cp, win_score_count)
+                           win_adj, win_score_cp, win_score_count, log_fn)
     
     # Run game matches in parallel
     if parallel < 1:
-        print(f'Warning, parallel is only {parallel}!, now it set at 1.')
+        logger.warning(f'parallel is only {parallel}!, now it set at 1.')
         parallel = 1
 
     with ProcessPoolExecutor(max_workers=parallel) as executor:
         game_id, round_num = 0, 0
         
         # Submit engine matches as job
-        for game in games:            
+        for game in games:                    
             round_num += 1
             sub_round, games_per_round_cnt, m, n = 0.0, 0, 0, 1
             
@@ -761,8 +852,8 @@ def main():
                     [names[m], names[n]],
                     [clock[m], clock[n]],
                     round_num + sub_round if reverse_start_side else round_num,
-                    total_games, game_id,
-                    win_adj, win_score_cp, win_score_count)
+                    total_games, game_id, log_fn,
+                    win_adj, win_score_cp, win_score_count, is_pc_logger)
                 
                 job = executor.submit(g.start_match)
                 analysis.append(job)
@@ -794,27 +885,25 @@ def main():
                 except KeyError:
                     termi = 'normal'
                 except Exception:
-                    logging.exception('Error in getting termination header value!')
+                    logger.exception('Error in getting termination header value!')
                     termi = 'unknown'
                 
                 # Save games to a file
                 print(game_output, file=open(outpgn, 'a'), end='\n\n')
                 
                 scores = update_score(game_output, scores)
+
+                logger.info(f'Done, game: {game_num}, round: {round_number}, elapse: {get_time_h_mm_ss_ms(game_elapse)}')
+                logger.info(f'players: {wp} vs {bp}')
+                logger.info(f'result: {res} ({termi})')
                 
-                logging.info(f'Done, game: {game_num}, round: {round_number}, ({wp} vs {bp}): {res} ({termi})')
-                print(f'Done, game: {game_num}, round: {round_number}, elapse: {get_time_h_mm_ss_ms(game_elapse)}')
-                print(f'players: {wp} vs {bp}')
-                print(f'result: {res} ({termi})')
-                
-                print_result_table(scores, num_res)
+                print_result_table(scores, num_res, log_fn)
 
             except Exception:
-                logging.exception('Exception in completed analysis.')
+                logger.exception('Exception in completed analysis.')         
     
     elapse = time.perf_counter_ns() - time_start  # time delta in nanoseconds
-    logging.info(f'Match: done, elapse: {get_time_h_mm_ss_ms(elapse)}')
-    print(f'Match: done, elapse: {get_time_h_mm_ss_ms(elapse)}')
+    logger.info(f'Match: done, elapse: {get_time_h_mm_ss_ms(elapse)}')
     
     logging.shutdown()
     
