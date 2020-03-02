@@ -29,7 +29,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.15'
+APP_VERSION = 'v1.16'
 
 
 # Increase limit to fix RecursionError
@@ -333,13 +333,13 @@ class Match():
         end_node = self.start_game.end()
         end_board = end_node.board()
         board = end_board.copy()
-        logger.debug(f'Create end board from fen: {board.fen()}')
+        logger.debug(f'Create board from fen: {board.fen()}')
         
         # Create a game for annotated game output.
         game = chess.pgn.Game()
         game = game.from_board(end_board)
         node = game.end()
-                
+
         logger.info(f'Starting, game: {self.game_id} / {self.total_games}, round: {self.round_num}, players: {self.eng_names[1]} vs {self.eng_names[0]}')
         
         # First engine with index 0 will handle the black side.
@@ -672,7 +672,7 @@ def get_engine_data(fn, ename, log_fn):
     
 
 def read_engine_option(engine_option_value):
-    players = {}
+    players, names = {}, []
     
     if len(engine_option_value) == 0:
         return players, None, None
@@ -692,12 +692,13 @@ def read_engine_option(engine_option_value):
                 except IndexError:
                     raise Exception('Time increment is missing!')
                 
+        names.append(name)
         d = {i: {'name': name, 'base': base_time_ms, 'inc': inc_time_ms}}
         players.update(d)
         
     players = collections.OrderedDict(sorted(players.items()))
     
-    return players, base_time_ms, inc_time_ms
+    return players, base_time_ms, inc_time_ms, names
 
 
 def delete_file(*fns):
@@ -765,16 +766,15 @@ def main():
     
     # --engine config-name="E1" tc=1000+100 --engine config-name="E2" ...
     # players is a dict {0: {'name': None, 'base': None, 'inc': None}, 1: {} ...}
-    players, base_time_ms, inc_time_ms = read_engine_option(args.engine)
-    names = [players[0]['name'], players[1]['name']]
+    players, base_time_ms, inc_time_ms, names = read_engine_option(args.engine)
         
     # Update clock
     for _, v in players.items():
         clock.append(Timer(v['base'], v['inc']))
     
-    # Stop the script if engine config name is not defined
-    if names[0] is None or names[1] is None:
-        raise Exception('Engine config name was not defined! Use config-name=engine_name')
+    # Stop the script if one of the engine names is not defined.
+    if None in names:
+        raise Exception('Engine config name should not be None')
 
     # Stop the script if engine clock is not defined
     for i in range(len(names)):
@@ -807,14 +807,16 @@ def main():
         try:
             eng_files[i], eng_opts[i] = get_engine_data(engine_json, names[i], log_fn)
         except TypeError:
-            raise Exception(f'engine {i+1} name cannot be found in engine config file!')
+            raise Exception(f'engine {names[i]} cannot be found in {Path(engine_json).name}!')
         except Exception:
-            logger.exception('Exception occurs in getting engine data from engine config file!')
-            raise Exception('Exception occurs in getting engine data!')
+            raise Exception(f'Exception occurs in getting engine data from {Path(engine_json).name}')
     
     # Init vars for game matches and results
-    scores = {names[0]: {'score': 0, 'draws': 0, 'tf': 0},
-              names[1]: {'score': 0, 'draws': 0, 'tf': 0}}
+    scores = {}
+    for i in range(len(names)):
+        d = {names[i]: {'score': 0, 'draws': 0, 'tf': 0}}
+        scores.update(d)
+
     analysis, round_num, num_res = [], 0, 0
     
     time_start = time.perf_counter_ns()
