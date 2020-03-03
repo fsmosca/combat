@@ -20,6 +20,7 @@ from pathlib import Path  # Python 3.4
 import time
 from datetime import datetime
 import random
+import configparser
 import collections
 import argparse
 import json
@@ -29,7 +30,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.16'
+APP_VERSION = 'v1.17'
 
 
 # Increase limit to fix RecursionError
@@ -671,34 +672,95 @@ def get_engine_data(fn, ename, log_fn):
         return path_file, opt
     
 
-def read_engine_option(engine_option_value):
-    players, names = {}, []
+def read_engine_option(engine_option_value, match_fn, rounds, reverse, parallel,
+                       opt_win_adjudication, win_adj, win_score_cp,
+                       win_score_count, engine_json, op_file, random_pos):
     
-    if len(engine_option_value) == 0:
-        return players, None, None
+    players, names, base_time_ms, inc_time_ms = {}, [], None, None
     
-    for i, e in enumerate(engine_option_value):
-        name, base_time_ms, inc_time_ms = None, None, None
-        for v in e:
-            par_name = v.split('=')[0]
-            par_value = v.split('=')[1]
-            if par_name == 'config-name':
-                name = par_value
-            elif par_name == 'tc':
-                tc_val = par_value
-                base_time_ms = int(tc_val.split('+')[0])
-                try:
-                    inc_time_ms = int(tc_val.split('+')[1])
-                except IndexError:
-                    raise Exception('Time increment is missing!')
-                
-        names.append(name)
-        d = {i: {'name': name, 'base': base_time_ms, 'inc': inc_time_ms}}
-        players.update(d)
+    if engine_option_value:         
+        for i, e in enumerate(engine_option_value):
+            name, base_time_ms, inc_time_ms = None, None, None
+            for v in e:
+                par_name = v.split('=')[0]
+                par_value = v.split('=')[1]
+                if par_name == 'config-name':
+                    name = par_value
+                elif par_name == 'tc':
+                    tc_val = par_value
+                    base_time_ms = int(tc_val.split('+')[0])
+                    try:
+                        inc_time_ms = int(tc_val.split('+')[1])
+                    except IndexError:
+                        raise Exception('Time increment is missing!')
+                    
+            names.append(name)
+            d = {i: {'name': name, 'base': base_time_ms, 'inc': inc_time_ms}}
+            players.update(d)
+            
+        players = collections.OrderedDict(sorted(players.items()))
         
-    players = collections.OrderedDict(sorted(players.items()))
+        # --win-adjudication score=700 count=4
+        if opt_win_adjudication:
+            win_adj = True
+            for v in opt_win_adjudication:
+                value = v.split('=')
+                if value[0] == 'score':
+                    win_score_cp = int(value[1])
+                elif value[0] == 'count':
+                    win_score_count = int(value[1])
+                
+    else:
+        # Read match.ini to determine the player names, etc
+        parser = configparser.ConfigParser()
+        parser.read(match_fn)
+        for section_name in parser.sections():
+            for name, value in parser.items(section_name):
+                if section_name.lower() == 'combat':
+                    if name == 'engine config file':
+                        engine_json = value
+                    elif name == 'round':
+                        rounds = int(value)
+                    elif name == 'opening file':
+                        op_file = value
+                    elif name == 'reverse':
+                        reverse = value
+                    elif name == 'randomize position':
+                        random_pos = value
+                    elif name == 'parallel':
+                        parallel = int(value)                        
+                    elif name == 'win adjudication enable':
+                        win_adj = value
+                    elif name == 'win adjudication score':
+                        win_score_cp = int(value)
+                    elif name == 'win adjudication count':
+                        win_score_count = int(value)
+                        
+                elif section_name.lower() == 'engine1':
+                    if name == 'name':
+                        name = value
+                        names.append(name)
+                    elif name.lower() == 'tc':
+                        base_time_ms = int(value.split('+')[0])
+                        inc_time_ms = int(value.split('+')[1])
+                        
+                    d = {0: {'name': name, 'base': base_time_ms, 'inc': inc_time_ms}}
+                    players.update(d)
+                    
+                elif section_name.lower() == 'engine2':
+                    if name.lower() == 'name':
+                        name = value
+                        names.append(name)
+                    elif name.lower() == 'tc':
+                        base_time_ms = int(value.split('+')[0])
+                        inc_time_ms = int(value.split('+')[1])
+                        
+                    d = {1: {'name': name, 'base': base_time_ms, 'inc': inc_time_ms}}
+                    players.update(d)
     
-    return players, base_time_ms, inc_time_ms, names
+    return players, base_time_ms, inc_time_ms, names, op_file, random_pos, \
+        rounds, reverse, parallel, win_adj, win_score_cp, win_score_count, \
+        engine_json
 
 
 def delete_file(*fns):
@@ -721,11 +783,13 @@ def main():
         description='Run engine vs engine match',
         epilog='%(prog)s' + ' %s' % APP_VERSION,
         formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('--engine-config-file', required=True,
-                        help=engine_config_help)
-    parser.add_argument('--engine', nargs='*', action='append', required=True,
+    parser.add_argument('--engine-config-file', required=False,
+                        default='combat.json', help=engine_config_help)
+    parser.add_argument('--engine', nargs='*', action='append', required=False,
                         help=engine_help)
-    parser.add_argument('--opening', nargs='*', required=True, help=opening_help)
+    parser.add_argument('--opening', nargs='*', required=False, 
+                        default=['file=grand_swiss_2019_6plies.pgn', 'random=False'],
+                        help=opening_help)
     parser.add_argument('--round', default=500, type=int,
                         help='number of games to play, twice if reverse is true')
     parser.add_argument('--reverse', action='store_true',
@@ -748,25 +812,42 @@ def main():
     parallel = args.parallel  
     max_round = args.round
     reverse_start_side = args.reverse
+    engine_json = args.engine_config_file
     
     # Init logging
     log_fn = args.log_filename
     engine_log_fn = 'engine_log.txt'
     is_pc_logger = args.engine_log
+    match_fn = 'match.ini'
     
     # Delete existing log files everytime combat is run.
     delete_file(log_fn, engine_log_fn)
     
     logger = setup_logging(main.__name__, log_fn)
     
+    opening_file, randomize_pos = None, False
+    win_adj, win_score_cp, win_score_count = False, 700, 4
+    
+    # --opening file=start.pgn random=False
+    if args.opening:
+        for v in args.opening:
+            print(v)
+            value = v.split('=')
+            if value[0] == 'file':
+                opening_file = value[1]
+            elif value[0] == 'random':
+                randomize_pos = True if value[1] == 'true' else False               
+    
+    
     clock = []  # clock[Timer(), Timer()] index 0 is for black
     
-    # --engine-config-file combat.json
-    engine_json = args.engine_config_file
-    
-    # --engine config-name="E1" tc=1000+100 --engine config-name="E2" ...
-    # players is a dict {0: {'name': None, 'base': None, 'inc': None}, 1: {} ...}
-    players, base_time_ms, inc_time_ms, names = read_engine_option(args.engine)
+    players, base_time_ms, inc_time_ms, names, opening_file, \
+        randomize_pos, max_round, reverse_start_side, parallel, \
+        win_adj, win_score_cp, win_score_count, engine_json = \
+        read_engine_option(
+            args.engine, match_fn, max_round, reverse_start_side, parallel,
+            args.win_adjudication, win_adj, win_score_cp, win_score_count,
+            engine_json, opening_file, randomize_pos)
         
     # Update clock
     for _, v in players.items():
@@ -780,26 +861,6 @@ def main():
     for i in range(len(names)):
         if players[i]['base'] is None or players[i]['inc'] is None:
             raise Exception(f'{"Black" if i == 0 else "White"} TC was not defined! Use tc=base_time_ms+inc_time_ms')
-    
-    # --opening file=start.pgn random=False
-    opening_file, randomize_pos = None, False
-    for v in args.opening:
-        value = v.split('=')
-        if value[0] == 'file':
-            opening_file = value[1]
-        elif value[0] == 'random':
-            randomize_pos = True if value[1] == 'true' else False
-            
-    # --win-adjudication score=700 count=4
-    win_adj, win_score_cp, win_score_count = False, 700, 4
-    if args.win_adjudication is not None:
-        win_adj = True
-        for v in args.win_adjudication:
-            value = v.split('=')
-            if value[0] == 'score':
-                win_score_cp = int(value[1])
-            elif value[0] == 'count':
-                win_score_count = int(value[1])
     
     # Get eng file and options from engine json file
     eng_files, eng_opts = [None] * len(names), [None] * len(names)
