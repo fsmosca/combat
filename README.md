@@ -3,19 +3,16 @@ A python script to run engine vs engine game matches.
 
 ### Requirements
 * Python 3.7.x or later
-* Python-chess
+* Python-chess 0.30.1
 
 ### Guide
 
 #### 1. Help
 combat.py -h
 ```
-usage: combat [-h] --engine-config-file ENGINE_CONFIG_FILE --engine
-              [ENGINE [ENGINE ...]] --opening [OPENING [OPENING ...]]
-              [--round ROUND] [--reverse] [--parallel PARALLEL]
-              [--win-adjudication [WIN_ADJUDICATION [WIN_ADJUDICATION ...]]]
-              [--output OUTPUT] [--log-filename LOG_FILENAME] [--engine-log]
-              [-v]
+usage: combat [-h] [--engine-config-file ENGINE_CONFIG_FILE] [--engine [ENGINE [ENGINE ...]]] [--opening [OPENING [OPENING ...]]] [--round ROUND]
+              [--reverse] [--parallel PARALLEL] [--win-adjudication [WIN_ADJUDICATION [WIN_ADJUDICATION ...]]] [--output OUTPUT]
+              [--log-filename LOG_FILENAME] [--engine-log] [-v]
 
 Run engine vs engine match
 
@@ -29,6 +26,7 @@ optional arguments:
                         --engine-config-file combat.json
                         or using the engines.json from cutechess
                         --engine-config-file "d:/chess/cutechess/engines.json"
+                        default is combat.json
   --engine [ENGINE [ENGINE ...]]
                         This option is used to define the engines
                         playing in the match. It also include tc or time control. You need to call
@@ -58,6 +56,7 @@ optional arguments:
                         --opening file="d:/chess/opening.epd" random=true
                         or to not use random
                         --opening file="d:/chess/opening.epd" random=false
+                        command line default value is ["file=grand_swiss_2019_6plies.pgn", "random=False"]
   --round ROUND         number of games to play, twice if reverse is true
   --reverse             A flag to reverse start side.
   --parallel PARALLEL   Option to run game matches in parallel
@@ -81,7 +80,7 @@ optional arguments:
   --engine-log          A flag to save engine log to a file.
   -v, --version         show program's version number and exit
 
-combat v1.14
+combat v1.22
 ```
 
 #### 2. Command line
@@ -124,8 +123,11 @@ win adjudication enable = true
 win adjudication score = 700
 win adjudication count = 4
 
-# Run game matches in parallel
-parallel = 4
+# Run game matches in parallel, value >= 1
+parallel = 1
+
+# Write engine logs to engine_log.txt. default = false, values can true or false
+engine logging = true
 
 
 [ENGINE1]
@@ -356,6 +358,7 @@ Match: done, elapse: 0h:00m:39s:303ms
 * Supports fen/epd and pgn files as a source of opening start positions.
 * Can adjudicate games based on winning score.
 * Can read engine settings from combat.json file or cutechess engines.json file.
+* Can run engine vs engine match based from match.ini file that is without using the command line options and flags.
 
 ### Limitations
 * Can only run engine vs engine match.
