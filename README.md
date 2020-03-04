@@ -102,6 +102,31 @@ All logs are saved in combat_log.txt, to save in a different log, use the --log-
 
 Also check the windows batch file run_combat.bat which can be found in this repo. You can modify and run it.
 
+#### 2.1 Command line in batch file with gauntlet match
+The first engine is the gauntlet, the player that plays against other engines. In this case it is `Deuterium v2019.2 Elo 2000`
+```
+combat.py --engine-config-file combat.json ^
+--engine config-name="Deuterium v2019.2 Elo 2000" tc=5000+50 ^
+--engine config-name="Deuterium v2019.2 Elo 1900" tc=5000+50 ^
+--engine config-name="Deuterium v2019.2 Elo 1800" tc=5000+50 ^
+--engine config-name="Deuterium v2019.2 Elo 1700" tc=5000+50 ^
+--opening file="grand_swiss_2019_6plies.epd" random=true ^
+--round 50 ^
+--reverse ^
+--win-adjudication score=700 count=4 ^
+--parallel 4
+
+pause
+```
+Typical result table:
+```
+name                                 score     games  score%   Draw%   tf
+Deuterium v2019.2 Elo 2000           188.0       300    62.7     4.0    0
+Deuterium v2019.2 Elo 1900            44.0       100    44.0     4.0    0
+Deuterium v2019.2 Elo 1800            45.5       100    45.5     5.0    0
+Deuterium v2019.2 Elo 1700            22.5       100    22.5     3.0    0
+```
+
 #### 3. Using match.ini to run game matches
 Sample match.ini is included in the repo.
 
