@@ -30,7 +30,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.22'
+APP_VERSION = 'v1.23'
 
 
 # Increase limit to fix RecursionError
@@ -484,9 +484,9 @@ def get_time_h_mm_ss_ms(time_ns, mmssms = False):
 def print_result_table(pd, num_res, log_fn):
     logger = setup_logging('result_table', log_fn)
     
-    tname = [pd[0]['name'], pd[1]['name']]
-    
-    # name_len = max(8, max(len(tname[0]), len(tname[1])))
+    tname = []
+    for i in range(len(pd)):
+        tname.append(pd[i]['name'])
     
     # Result table header
     logger.info('')
@@ -495,13 +495,20 @@ def print_result_table(pd, num_res, log_fn):
     
     # Table data
     for i in range(len(tname)):
+        games = pd[i]['games']
+        s = pd[i]['score']
+        d = pd[i]['draw']
+        sr = 100*s/games if games > 0 else 0.0
+        dr = 100*d/games if games > 0 else 0.0
+        tf = pd[i]['tf']
+        
         logger.info('%-32s %9.1f %9d %7.1f %7.1f %4d' % (
             tname[i],
-            pd[i]['score'],
-            num_res,
-            100*pd[i]['score']/num_res,
-            100*pd[i]['score']/num_res,
-            pd[i]['tf']))
+            s,
+            games,
+            sr,
+            dr,
+            tf))
         
     logger.info('')
     
@@ -519,22 +526,32 @@ def update_score(g, pd):
         for i in range(len(pd)):
             if wp == pd[i]['name']:
                 pd[i]['score'] += 1
-            if bp == pd[i]['name'] and termi == 'time forfeit':
-                pd[i]['tf'] += 1
+                pd[i]['games'] += 1
+            if bp == pd[i]['name']:
+                pd[i]['games'] += 1
+                if termi == 'time forfeit':
+                    pd[i]['tf'] += 1
+                
     elif res == '0-1':
         for i in range(len(pd)):
             if bp == pd[i]['name']:
                 pd[i]['score'] += 1
-            if wp == pd[i]['name'] and termi == 'time forfeit':
-                pd[i]['tf'] += 1
+                pd[i]['games'] += 1
+            if wp == pd[i]['name']:
+                pd[i]['games'] += 1
+                if termi == 'time forfeit':
+                    pd[i]['tf'] += 1                
+                
     elif res == '1/2-1/2':
         for i in range(len(pd)):
             if wp == pd[i]['name']:
                 pd[i]['score'] += 0.5
                 pd[i]['draw'] += 1
+                pd[i]['games'] += 1
             if bp == pd[i]['name']:
                 pd[i]['score'] += 0.5
                 pd[i]['draw'] += 1
+                pd[i]['games'] += 1
         
     return pd
 
@@ -788,9 +805,6 @@ def error_check(players, names):
 
 
 def main():    
-    # Variable that is not available yet in command line options
-    max_games_per_round = 2  # For each round, there is only 1 opening.
-    
     parser = argparse.ArgumentParser(
         prog='%s' % (APP_NAME),
         description='Run engine vs engine match',
@@ -873,7 +887,7 @@ def main():
     player_data = {}
     for i, (n, f, o, c) in enumerate(zip(names, eng_files, eng_opts, clock)):
         d = {i: {'name': n, 'file': f, 'opt': o,
-                 'clock': c, 'score': 0, 'draw': 0, 'tf': 0}}
+                 'clock': c, 'games': 0, 'score': 0, 'draw': 0, 'tf': 0}}
         player_data.update(d)
 
     analysis, round_num, num_res = [], 0, 0
@@ -882,7 +896,7 @@ def main():
     
     games = get_game_list(opening_file, log_fn, max_round, randomize_pos)
 
-    total_games = len(games) * 2 if reverse_start_side else len(games)
+    total_games = (len(player_data)-1) * len(games) * 2 if reverse_start_side else (len(player_data)-1) * len(games)
     
     print_match_conditions(len(games), reverse_start_side, opening_file,
                            randomize_pos, parallel, base_time_ms, inc_time_ms,
@@ -899,31 +913,40 @@ def main():
         # Submit engine matches as job
         for game in games:                    
             round_num += 1
-            sub_round, games_per_round_cnt, m, n = 0.0, 0, 0, 1
+            sub_round, games_per_round_cnt = 0.0, 0
             
-            while True:
-                game_id += 1
-                sub_round += 0.1
+            # Generate gauntlet matches, engine 1 is the gauntlet.
+            for i in range(len(player_data)):
+                m, n = 0, i+1
                 
-                g = Match(
-                    game,
-                    player_data[m],
-                    player_data[n],
-                    round_num + sub_round if reverse_start_side else round_num,
-                    total_games, game_id, log_fn,
-                    win_adj, win_score_cp, win_score_count, is_engine_log)
-                
-                job = executor.submit(g.start_match)
-                analysis.append(job)
-                games_per_round_cnt += 1
-                
-                if not reverse_start_side:
+                if i == len(player_data) - 1:
                     break
                 
-                if games_per_round_cnt >= max_games_per_round:
-                    break
-                
-                m, n = n, m  # Reverse the side
+                games_per_pair_per_round = 0
+                while True:
+                    game_id += 1
+                    sub_round += 0.1
+                    
+                    g = Match(
+                        game,
+                        player_data[m],
+                        player_data[n],
+                        round_num + sub_round if reverse_start_side else round_num,
+                        total_games, game_id, log_fn,
+                        win_adj, win_score_cp, win_score_count, is_engine_log)
+                    
+                    job = executor.submit(g.start_match)
+                    analysis.append(job)
+                    games_per_round_cnt += 1
+                    games_per_pair_per_round += 1
+                    
+                    if not reverse_start_side:
+                        break
+                    
+                    if games_per_pair_per_round >= 2:
+                        break                   
+                    
+                    m, n = n, m  # Reverse the side
             
         # Process every game results
         for future in concurrent.futures.as_completed(analysis):
