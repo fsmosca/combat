@@ -30,7 +30,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.24'
+APP_VERSION = 'v1.25'
 
 
 # Increase limit to fix RecursionError
@@ -803,7 +803,33 @@ def error_check(players, names):
         if None in [players[i]['base'], players[i]['inc']]:
             raise Exception(f'{"Black" if i == 0 else "White"} TC was not defined! Use tc=base_time_ms+inc_time_ms')
 
+def get_engine_file_and_option(engine_json, names, log_fn):
+    """
+    Return engine file and its option in engine json file.
+    """    
+    eng_files, eng_opts = [None] * len(names), [None] * len(names)
+    for i in range(len(names)):
+        try:
+            eng_files[i], eng_opts[i] = get_engine_data(engine_json, names[i], log_fn)
+        except TypeError:
+            raise Exception(f'engine {names[i]} cannot be found in {Path(engine_json).name}!')
+        except Exception:
+            raise Exception(f'Exception occurs in getting engine data from {Path(engine_json).name}')
+            
+    return eng_files, eng_opts
 
+
+def get_clock(players):
+    """
+    Create clock for each engine and return it.
+    """    
+    clock = []
+    for _, v in players.items():
+        clock.append(Timer(v['base'], v['inc']))
+        
+    return clock
+
+    
 def main():    
     parser = argparse.ArgumentParser(
         prog='%s' % (APP_NAME),
@@ -869,22 +895,14 @@ def main():
             args.win_adjudication, win_adj, win_score_cp, win_score_count,
             engine_json, opening_file, randomize_pos, is_engine_log)
 
-    # Update clock
-    clock = []
-    for _, v in players.items():
-        clock.append(Timer(v['base'], v['inc']))
-
+    # Create clock per player
+    clock = get_clock(players)
+    
+    # Stop the script at this point if there are errors
     error_check(players, names)
 
     # Get eng file and options from engine json file
-    eng_files, eng_opts = [None] * len(names), [None] * len(names)
-    for i in range(len(names)):
-        try:
-            eng_files[i], eng_opts[i] = get_engine_data(engine_json, names[i], log_fn)
-        except TypeError:
-            raise Exception(f'engine {names[i]} cannot be found in {Path(engine_json).name}!')
-        except Exception:
-            raise Exception(f'Exception occurs in getting engine data from {Path(engine_json).name}')
+    eng_files, eng_opts = get_engine_file_and_option(engine_json, names, log_fn)
     
     # Save overall player_data in a dict
     player_data = {}
@@ -895,8 +913,10 @@ def main():
 
     analysis, round_num, num_res = [], 0, 0
     
+    # Record elapse time for the whole match
     time_start = time.perf_counter_ns()
     
+    # Prepare opening start positions for the match
     games = get_game_list(opening_file, log_fn, max_round, randomize_pos)
 
     total_games = (len(player_data)-1) * len(games) * 2 if reverse_start_side else (len(player_data)-1) * len(games)
@@ -979,6 +999,7 @@ def main():
                 # Save games to a file
                 print(game_output, file=open(outpgn, 'a'), end='\n\n')
                 
+                # Update engine score incrementally for result table
                 player_data = update_score(game_output, player_data)
 
                 logger.info(f'Done, game: {game_num}, round: {round_number}, elapse: {get_time_h_mm_ss_ms(game_elapse)}')
