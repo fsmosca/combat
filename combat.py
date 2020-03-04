@@ -30,7 +30,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.21'
+APP_VERSION = 'v1.22'
 
 
 # Increase limit to fix RecursionError
@@ -124,7 +124,7 @@ class Timer():
 class Match():    
     def __init__(self, start_game, player1, player2,
                  round_num, total_games, game_id, log_fn, adjudication=False,
-                 win_score_cp=700, win_score_count=4, is_pc_logger=False):
+                 win_score_cp=700, win_score_count=4, is_engine_log=False):
         self.start_game = start_game
         self.eng_files = [player1['file'], player2['file']]
         self.eng_opts = [player1['opt'], player2['opt']]
@@ -139,7 +139,7 @@ class Match():
         self.adjudication = adjudication
         self.win_score_cp = win_score_cp
         self.win_score_count = win_score_count
-        self.is_pc_logger = is_pc_logger  # pc is python-chess
+        self.is_engine_log = is_engine_log
 
     def update_headers(self, game, board, wplayer, bplayer, score_adjudication, elapse):
         ga = chess.pgn.Game()
@@ -316,7 +316,7 @@ class Match():
         logger = setup_logging('Match.start_match', self.log_fn)
         
         # Enable python-chess module engine logger, saved in a different file.
-        if self.is_pc_logger:
+        if self.is_engine_log:
             setup_logging('chess.engine', 'engine_log.txt')
         
         # Save score info per move from both engines for score adjudications
@@ -658,7 +658,11 @@ def get_engine_data(fn, ename, log_fn):
 
 def read_engine_option(engine_option_value, match_fn, rounds, reverse, parallel,
                        opt_win_adjudication, win_adj, win_score_cp,
-                       win_score_count, engine_json, op_file, random_pos):
+                       win_score_count, engine_json, op_file, random_pos,
+                       is_engine_log):
+    """
+    Read combat command line option values or match.ini file.
+    """
     
     players, names, base_time_ms, inc_time_ms = {}, [], None, None
     
@@ -719,6 +723,8 @@ def read_engine_option(engine_option_value, match_fn, rounds, reverse, parallel,
                         win_score_cp = int(value)
                     elif name == 'win adjudication count':
                         win_score_count = int(value)
+                    elif name == 'engine logging':
+                        is_engine_log = True if value == 'true' else False
                         
                 elif section_name.lower() == 'engine1':
                     if name == 'name':
@@ -744,7 +750,7 @@ def read_engine_option(engine_option_value, match_fn, rounds, reverse, parallel,
     
     return players, base_time_ms, inc_time_ms, names, op_file, random_pos, \
         rounds, reverse, parallel, win_adj, win_score_cp, win_score_count, \
-        engine_json
+        engine_json, is_engine_log
 
 
 def delete_file(*fns):
@@ -824,7 +830,7 @@ def main():
     # Init logging
     log_fn = args.log_filename
     engine_log_fn = 'engine_log.txt'
-    is_pc_logger = args.engine_log
+    is_engine_log = args.engine_log
     match_fn = 'match.ini'
     
     # Delete existing log files everytime combat is run.
@@ -840,11 +846,11 @@ def main():
     
     players, base_time_ms, inc_time_ms, names, opening_file, \
         randomize_pos, max_round, reverse_start_side, parallel, \
-        win_adj, win_score_cp, win_score_count, engine_json = \
+        win_adj, win_score_cp, win_score_count, engine_json, is_engine_log = \
         read_engine_option(
             args.engine, match_fn, max_round, reverse_start_side, parallel,
             args.win_adjudication, win_adj, win_score_cp, win_score_count,
-            engine_json, opening_file, randomize_pos)
+            engine_json, opening_file, randomize_pos, is_engine_log)
 
     # Update clock
     clock = []
@@ -905,7 +911,7 @@ def main():
                     player_data[n],
                     round_num + sub_round if reverse_start_side else round_num,
                     total_games, game_id, log_fn,
-                    win_adj, win_score_cp, win_score_count, is_pc_logger)
+                    win_adj, win_score_cp, win_score_count, is_engine_log)
                 
                 job = executor.submit(g.start_match)
                 analysis.append(job)
