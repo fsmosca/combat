@@ -30,7 +30,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.23'
+APP_VERSION = 'v1.24'
 
 
 # Increase limit to fix RecursionError
@@ -831,6 +831,8 @@ def main():
                         help='A filename to save its logs. default=combat_log.txt')
     parser.add_argument('--engine-log', action='store_true',
                         help='A flag to save engine log to a file.')
+    parser.add_argument('--gauntlet-color',
+                        help='Set the color of gauntlet to either white or black. Example --gauntlet-color white')
     parser.add_argument('-v', '--version', action='version',
                         version='%(prog)s ' + APP_VERSION)
     
@@ -840,6 +842,7 @@ def main():
     max_round = args.round
     reverse_start_side = args.reverse
     engine_json = args.engine_config_file
+    gauntlet_color = args.gauntlet_color
     
     # Init logging
     log_fn = args.log_filename
@@ -897,6 +900,7 @@ def main():
     games = get_game_list(opening_file, log_fn, max_round, randomize_pos)
 
     total_games = (len(player_data)-1) * len(games) * 2 if reverse_start_side else (len(player_data)-1) * len(games)
+    total_games = total_games if gauntlet_color is None else total_games//2
     
     print_match_conditions(len(games), reverse_start_side, opening_file,
                            randomize_pos, parallel, base_time_ms, inc_time_ms,
@@ -913,11 +917,14 @@ def main():
         # Submit engine matches as job
         for game in games:                    
             round_num += 1
-            sub_round, games_per_round_cnt = 0.0, 0
+            sub_round = 0.0
             
             # Generate gauntlet matches, engine 1 is the gauntlet.
             for i in range(len(player_data)):
                 m, n = 0, i+1
+                
+                if gauntlet_color == 'white':
+                    m, n = n, m
                 
                 if i == len(player_data) - 1:
                     break
@@ -937,14 +944,14 @@ def main():
                     
                     job = executor.submit(g.start_match)
                     analysis.append(job)
-                    games_per_round_cnt += 1
                     games_per_pair_per_round += 1
                     
-                    if not reverse_start_side:
+                    if not reverse_start_side or \
+                        gauntlet_color == 'white' or gauntlet_color == 'black':
                         break
                     
                     if games_per_pair_per_round >= 2:
-                        break                   
+                        break
                     
                     m, n = n, m  # Reverse the side
             
