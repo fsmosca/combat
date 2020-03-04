@@ -30,7 +30,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.18'
+APP_VERSION = 'v1.19'
 
 
 # Increase limit to fix RecursionError
@@ -774,6 +774,18 @@ def delete_file(*fns):
             os.remove(fn)
         except OSError:
             pass
+        
+
+def read_opening(opt_value):
+    opening_file, randomize_pos = None, False
+    for v in opt_value:
+        value = v.split('=')
+        if value[0] == 'file':
+            opening_file = value[1]
+        elif value[0] == 'random':
+            randomize_pos = True if value[1] == 'true' else False
+            
+    return opening_file, randomize_pos
 
     
 def main():    
@@ -827,20 +839,11 @@ def main():
     
     logger = setup_logging(main.__name__, log_fn)
     
+    clock = []  # clock[Timer(), Timer()] index 0 is for black
     opening_file, randomize_pos = None, False
     win_adj, win_score_cp, win_score_count = False, 700, 4
     
-    # --opening file=start.pgn random=False
-    if args.opening:
-        for v in args.opening:
-            value = v.split('=')
-            if value[0] == 'file':
-                opening_file = value[1]
-            elif value[0] == 'random':
-                randomize_pos = True if value[1] == 'true' else False               
-    
-    
-    clock = []  # clock[Timer(), Timer()] index 0 is for black
+    opening_file, randomize_pos = read_opening(args.opening)
     
     players, base_time_ms, inc_time_ms, names, opening_file, \
         randomize_pos, max_round, reverse_start_side, parallel, \
