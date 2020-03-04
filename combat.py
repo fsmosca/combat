@@ -30,7 +30,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.25'
+APP_VERSION = 'v1.26'
 
 
 # Increase limit to fix RecursionError
@@ -673,12 +673,12 @@ def get_engine_data(fn, ename, log_fn):
         return path_file, opt
     
 
-def read_engine_option(engine_option_value, match_fn, rounds, reverse, parallel,
+def get_match_data(engine_option_value, match_fn, rounds, reverse, parallel,
                        opt_win_adjudication, win_adj, win_score_cp,
                        win_score_count, engine_json, op_file, random_pos,
                        is_engine_log):
     """
-    Read combat command line option values or match.ini file.
+    Get command line option values or match.ini file and others.
     """
     
     players, names, base_time_ms, inc_time_ms = {}, [], None, None
@@ -781,7 +781,7 @@ def delete_file(*fns):
             pass
         
 
-def read_opening(opt_value):
+def get_opening_data(opt_value):
     opening_file, randomize_pos = None, False
     for v in opt_value:
         value = v.split('=')
@@ -885,12 +885,12 @@ def main():
     opening_file, randomize_pos = None, False
     win_adj, win_score_cp, win_score_count = False, 700, 4
     
-    opening_file, randomize_pos = read_opening(args.opening)
+    opening_file, randomize_pos = get_opening_data(args.opening)
     
     players, base_time_ms, inc_time_ms, names, opening_file, \
         randomize_pos, max_round, reverse_start_side, parallel, \
         win_adj, win_score_cp, win_score_count, engine_json, is_engine_log = \
-        read_engine_option(
+        get_match_data(
             args.engine, match_fn, max_round, reverse_start_side, parallel,
             args.win_adjudication, win_adj, win_score_cp, win_score_count,
             engine_json, opening_file, randomize_pos, is_engine_log)
