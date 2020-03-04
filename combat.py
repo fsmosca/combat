@@ -30,7 +30,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.17'
+APP_VERSION = 'v1.18'
 
 
 # Increase limit to fix RecursionError
@@ -49,7 +49,8 @@ or you can use engines.json from cutechess.
 example:
 --engine-config-file combat.json
 or using the engines.json from cutechess
---engine-config-file "d:/chess/cutechess/engines.json"'''
+--engine-config-file "d:/chess/cutechess/engines.json"
+default is combat.json'''
 
 engine_help ='''This option is used to define the engines
 playing in the match. It also include tc or time control. You need to call
@@ -78,7 +79,8 @@ or with file path
 or with epd file
 --opening file="d:/chess/opening.epd" random=true
 or to not use random
---opening file="d:/chess/opening.epd" random=false'''
+--opening file="d:/chess/opening.epd" random=false
+command line default value is ["file=grand_swiss_2019_6plies.pgn", "random=False"]'''
 
 parallel_help ='''Option to run game matches in parallel
 example:
@@ -831,7 +833,6 @@ def main():
     # --opening file=start.pgn random=False
     if args.opening:
         for v in args.opening:
-            print(v)
             value = v.split('=')
             if value[0] == 'file':
                 opening_file = value[1]
