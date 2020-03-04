@@ -103,7 +103,47 @@ All logs are saved in combat_log.txt, to save in a different log, use the --log-
 
 Also check the windows batch file run_combat.bat which can be found in this repo. You can modify and run it.
 
-#### 3. How to find the config-name in combat.json file?
+#### 3. Using match.ini to run game matches
+Sample match.ini is included in the repo.
+
+```
+[COMBAT]
+# Engine settings file
+engine config file = combat.json
+
+# Games = rounds x 2 if reverse is true
+round = 8
+reverse = true
+
+# Opening file and random
+opening file = grand_swiss_2019_6plies.pgn
+randomize position = true
+
+# Adjudication
+win adjudication enable = true
+win adjudication score = 700
+win adjudication count = 4
+
+# Run game matches in parallel
+parallel = 4
+
+
+[ENGINE1]
+# name is from engine config file or combat.json or engines.json
+name = Deuterium v2019.2
+
+# tc or time control as base_time+inc_time, all in ms
+tc = 10000+100
+
+
+[ENGINE2]
+name = Deuterium v2019.2 mobility130
+tc = 10000+100
+```
+
+Then run the program with `combat.py`
+
+#### 4. How to find the config-name in combat.json file?
 Open combat.json file and find a name key. Example below.
 ```
 [
@@ -126,7 +166,7 @@ Open combat.json file and find a name key. Example below.
 ```
 That `Deuterium v2019.2` will be the engine's config-name.
 
-#### 4. Sample run
+#### 5. Sample run
 ```
 combat v1.11
 Preparing start opening from my_startpos.pgn ...
@@ -255,7 +295,7 @@ Deuterium v2019.2                   5.0        12    41.7    33.3    0
 Match: done, elapse: 0h:00m:39s:303ms
 ```
 
-#### 5. Sample logs from combat_log.txt
+#### 6. Sample logs from combat_log.txt
 ```
 2020-03-02 12:55:45,169 -     get_game_list -     INFO - Preparing start opening from grand_swiss_2019_6plies.epd ...
 2020-03-02 12:55:45,169 -     get_game_list -     INFO - status: done, games prepared: 8, elapse: 0h:00m:00s:003ms
