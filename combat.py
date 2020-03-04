@@ -30,7 +30,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.19'
+APP_VERSION = 'v1.20'
 
 
 # Increase limit to fix RecursionError
@@ -787,7 +787,18 @@ def read_opening(opt_value):
             
     return opening_file, randomize_pos
 
-    
+
+def error_check(players, names):
+    # Stop the script if one of the engine names is not defined.
+    if None in names:
+        raise Exception('Engine config name should not be None')
+
+    # Stop the script if engine clock is not defined
+    for i in range(len(names)):
+        if None in [players[i]['base'], players[i]['inc']]:
+            raise Exception(f'{"Black" if i == 0 else "White"} TC was not defined! Use tc=base_time_ms+inc_time_ms')
+
+
 def main():    
     # Variable that is not available yet in command line options
     max_games_per_round = 2  # For each round, there is only 1 opening.
@@ -852,20 +863,13 @@ def main():
             args.engine, match_fn, max_round, reverse_start_side, parallel,
             args.win_adjudication, win_adj, win_score_cp, win_score_count,
             engine_json, opening_file, randomize_pos)
-        
+
     # Update clock
     for _, v in players.items():
         clock.append(Timer(v['base'], v['inc']))
-    
-    # Stop the script if one of the engine names is not defined.
-    if None in names:
-        raise Exception('Engine config name should not be None')
 
-    # Stop the script if engine clock is not defined
-    for i in range(len(names)):
-        if players[i]['base'] is None or players[i]['inc'] is None:
-            raise Exception(f'{"Black" if i == 0 else "White"} TC was not defined! Use tc=base_time_ms+inc_time_ms')
-    
+    error_check(players, names)
+
     # Get eng file and options from engine json file
     eng_files, eng_opts = [None] * len(names), [None] * len(names)
     for i in range(len(names)):
