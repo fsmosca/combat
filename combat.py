@@ -30,7 +30,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.20'
+APP_VERSION = 'v1.21'
 
 
 # Increase limit to fix RecursionError
@@ -122,14 +122,14 @@ class Timer():
 
 
 class Match():    
-    def __init__(self, start_game, eng_files, eng_opts, eng_names, clock,
+    def __init__(self, start_game, player1, player2,
                  round_num, total_games, game_id, log_fn, adjudication=False,
                  win_score_cp=700, win_score_count=4, is_pc_logger=False):
         self.start_game = start_game
-        self.eng_files = eng_files
-        self.eng_opts = eng_opts
-        self.eng_names = eng_names
-        self.clock = clock
+        self.eng_files = [player1['file'], player2['file']]
+        self.eng_opts = [player1['opt'], player2['opt']]
+        self.eng_names = [player1['name'], player2['name']]
+        self.clock = [player1['clock'], player2['clock']]
         self.round_num = round_num  # for pgn header
         self.total_games = total_games
         self.time_forfeit = [False, False]
@@ -481,12 +481,10 @@ def get_time_h_mm_ss_ms(time_ns, mmssms = False):
         return '{:01d}h:{:02d}m:{:02d}s:{:03d}ms'.format(h, m, s, ms)
     
     
-def print_result_table(scores, num_res, log_fn):
+def print_result_table(pd, num_res, log_fn):
     logger = setup_logging('result_table', log_fn)
     
-    tname = [None, None]
-    tname[0] = list(scores.keys())[0]
-    tname[1] = list(scores.keys())[1]
+    tname = [pd[0]['name'], pd[1]['name']]
     
     # name_len = max(8, max(len(tname[0]), len(tname[1])))
     
@@ -499,62 +497,46 @@ def print_result_table(scores, num_res, log_fn):
     for i in range(len(tname)):
         logger.info('%-32s %9.1f %9d %7.1f %7.1f %4d' % (
             tname[i],
-            scores[tname[i]]['score'],
+            pd[i]['score'],
             num_res,
-            100*scores[tname[i]]['score']/num_res,
-            100*scores[tname[i]]['draws']/num_res,
-            scores[tname[i]]['tf']))
+            100*pd[i]['score']/num_res,
+            100*pd[i]['score']/num_res,
+            pd[i]['tf']))
         
     logger.info('')
     
 
-def update_score(g, scores):
+def update_score(g, pd):
     """ 
-    scores = {names[0]: {'score': 0, 'draws': 0, 'tf': 0},
-              names[1]: {'score': 0, 'draws': 0, 'tf': 0}}
+    pd: {0: {'name': 'engname', 'engfile': 'a.exe', 'engopt': oa ...}, 1: {...} ...}
     """
     res = g.headers['Result']
     wp = g.headers['White']
     bp = g.headers['Black']
     termi = g.headers['Termination']
     
-    n1 = list(scores.keys())[0]
-    n2 = list(scores.keys())[1]
-    s1 = scores[n1]['score']
-    s2 = scores[n2]['score']
-    d1 = scores[n1]['draws']
-    d2 = scores[n2]['draws']
-    tf1 = scores[n1]['tf']
-    tf2 = scores[n2]['tf']
-    
-    if res == '1-0':        
-        if wp == n1:
-            s1 += 1
-            if termi == 'time forfeit':
-                tf2 += 1
-        elif wp == n2:
-            s2 += 1
-            if termi == 'time forfeit':
-                tf1 += 1
+    if res == '1-0':
+        for i in range(len(pd)):
+            if wp == pd[i]['name']:
+                pd[i]['score'] += 1
+            if bp == pd[i]['name'] and termi == 'time forfeit':
+                pd[i]['tf'] += 1
     elif res == '0-1':
-        if bp == n1:
-            s1 += 1
-            if termi == 'time forfeit':
-                tf2 += 1
-        elif bp == n2:
-            s2 += 1
-            if termi == 'time forfeit':
-                tf1 += 1
+        for i in range(len(pd)):
+            if bp == pd[i]['name']:
+                pd[i]['score'] += 1
+            if wp == pd[i]['name'] and termi == 'time forfeit':
+                pd[i]['tf'] += 1
     elif res == '1/2-1/2':
-        s1 += 0.5
-        s2 += 0.5
-        d1 += 1
-        d2 += 1
+        for i in range(len(pd)):
+            if wp == pd[i]['name']:
+                pd[i]['score'] += 0.5
+                pd[i]['draw'] += 1
+            if bp == pd[i]['name']:
+                pd[i]['score'] += 0.5
+                pd[i]['draw'] += 1
         
-    scores = {n1: {'score': s1, 'draws': d1, 'tf': tf1},
-              n2: {'score': s2, 'draws': d2, 'tf': tf2}}
-        
-    return scores
+    return pd
 
 
 def get_game_list(fn, log_fn, max_round=500, randomize_pos=False):
@@ -850,7 +832,7 @@ def main():
     
     logger = setup_logging(main.__name__, log_fn)
     
-    clock = []  # clock[Timer(), Timer()] index 0 is for black
+    # Get command line option values and/or data from match.ini file
     opening_file, randomize_pos = None, False
     win_adj, win_score_cp, win_score_count = False, 700, 4
     
@@ -865,6 +847,7 @@ def main():
             engine_json, opening_file, randomize_pos)
 
     # Update clock
+    clock = []
     for _, v in players.items():
         clock.append(Timer(v['base'], v['inc']))
 
@@ -880,18 +863,19 @@ def main():
         except Exception:
             raise Exception(f'Exception occurs in getting engine data from {Path(engine_json).name}')
     
-    # Init vars for game matches and results
-    scores = {}
-    for i in range(len(names)):
-        d = {names[i]: {'score': 0, 'draws': 0, 'tf': 0}}
-        scores.update(d)
+    # Save overall player_data in a dict
+    player_data = {}
+    for i, (n, f, o, c) in enumerate(zip(names, eng_files, eng_opts, clock)):
+        d = {i: {'name': n, 'file': f, 'opt': o,
+                 'clock': c, 'score': 0, 'draw': 0, 'tf': 0}}
+        player_data.update(d)
 
     analysis, round_num, num_res = [], 0, 0
     
     time_start = time.perf_counter_ns()
     
     games = get_game_list(opening_file, log_fn, max_round, randomize_pos)
-        
+
     total_games = len(games) * 2 if reverse_start_side else len(games)
     
     print_match_conditions(len(games), reverse_start_side, opening_file,
@@ -917,10 +901,8 @@ def main():
                 
                 g = Match(
                     game,
-                    [eng_files[m], eng_files[n]],
-                    [eng_opts[m], eng_opts[n]],
-                    [names[m], names[n]],
-                    [clock[m], clock[n]],
+                    player_data[m],
+                    player_data[n],
                     round_num + sub_round if reverse_start_side else round_num,
                     total_games, game_id, log_fn,
                     win_adj, win_score_cp, win_score_count, is_pc_logger)
@@ -961,13 +943,13 @@ def main():
                 # Save games to a file
                 print(game_output, file=open(outpgn, 'a'), end='\n\n')
                 
-                scores = update_score(game_output, scores)
+                player_data = update_score(game_output, player_data)
 
                 logger.info(f'Done, game: {game_num}, round: {round_number}, elapse: {get_time_h_mm_ss_ms(game_elapse)}')
                 logger.info(f'players: {wp} vs {bp}')
                 logger.info(f'result: {res} ({termi})')
                 
-                print_result_table(scores, num_res, log_fn)
+                print_result_table(player_data, num_res, log_fn)
 
             except Exception:
                 logger.exception('Exception in completed analysis.')         
