@@ -109,17 +109,14 @@ Also check the windows batch file run_combat.bat which can be found in this repo
 The first engine is the gauntlet, the player that plays against other engines. In this case it is `Deuterium v2019.2 Elo 2000`
 ```
 combat.py --engine-config-file combat.json ^
---engine config-name="Deuterium v2019.2 Elo 2000" tc=5000+50 ^
 --engine config-name="Deuterium v2019.2 Elo 1900" tc=5000+50 ^
 --engine config-name="Deuterium v2019.2 Elo 1800" tc=5000+50 ^
 --engine config-name="Deuterium v2019.2 Elo 1700" tc=5000+50 ^
---opening file="grand_swiss_2019_6plies.epd" random=true ^
---round 50 ^
+--opening file="grand_swiss_2019_6plies.pgn" random=true ^
+--round 100 ^
 --reverse ^
 --win-adjudication score=700 count=4 ^
---parallel 4
-
-pause
+--parallel 6
 ```
 Typical result table:
 ```
