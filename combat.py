@@ -30,7 +30,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.26'
+APP_VERSION = 'v1.27'
 
 
 # Increase limit to fix RecursionError
@@ -484,29 +484,40 @@ def get_time_h_mm_ss_ms(time_ns, mmssms = False):
 def print_result_table(pd, num_res, log_fn):
     logger = setup_logging('result_table', log_fn)
     
-    tname = []
-    for i in range(len(pd)):
-        tname.append(pd[i]['name'])
+    logger.info('')
+    
+    tname = [pd[i]['name'] for i in range(len(pd))]
     
     # Result table header
-    logger.info('')
-    logger.info('%-32s %9s %9s %7s %7s %4s' % (
-        'name', 'score', 'games', 'score%', 'Draw%', 'tf'))
+        
+    # Get max length of engine names for table formatting.
+    width = len(max(tname, key=len))
     
+    tn = '{:>{width}}'.format('name', width=width)
+    thead = '{} {:>9s} {:>9s} {:>6s} {:>6s} {:>6s} {:>4s}'.format(
+        tn, 'score', 'games', 'score%', 'win%', 'draw%', 'tf')
+    logger.info(thead)
+
     # Table data
     for i in range(len(tname)):
-        games = pd[i]['games']
-        s = pd[i]['score']
-        d = pd[i]['draw']
-        sr = 100*s/games if games > 0 else 0.0
-        dr = 100*d/games if games > 0 else 0.0
+        w = pd[i]['win']  # num_win
+        l = pd[i]['loss'] # num_loss
+        d = pd[i]['draw'] # num_draw
+        g = w + l + d
+        s = w + d/2
+        sr = 100*s/g if g > 0 else 0.0
+        wr = 100*w/g if g > 0 else 0.0
+        dr = 100*d/g if g > 0 else 0.0
         tf = pd[i]['tf']
         
-        logger.info('%-32s %9.1f %9d %7.1f %7.1f %4d' % (
-            tname[i],
+        tn = '{:>{width}}'.format(tname[i], width=width)
+        
+        logger.info('{} {:>9.1f} {:>9d} {:>6.1f} {:>6.1f} {:>6.1f} {:>4d}'.format(
+            tn,
             s,
-            games,
+            g,
             sr,
+            wr,
             dr,
             tf))
         
@@ -525,33 +536,27 @@ def update_score(g, pd):
     if res == '1-0':
         for i in range(len(pd)):
             if wp == pd[i]['name']:
-                pd[i]['score'] += 1
-                pd[i]['games'] += 1
+                pd[i]['win'] += 1
             if bp == pd[i]['name']:
-                pd[i]['games'] += 1
+                pd[i]['loss'] += 1
                 if termi == 'time forfeit':
                     pd[i]['tf'] += 1
                 
     elif res == '0-1':
         for i in range(len(pd)):
             if bp == pd[i]['name']:
-                pd[i]['score'] += 1
-                pd[i]['games'] += 1
+                pd[i]['win'] += 1
             if wp == pd[i]['name']:
-                pd[i]['games'] += 1
+                pd[i]['loss'] += 1
                 if termi == 'time forfeit':
                     pd[i]['tf'] += 1                
                 
     elif res == '1/2-1/2':
         for i in range(len(pd)):
             if wp == pd[i]['name']:
-                pd[i]['score'] += 0.5
                 pd[i]['draw'] += 1
-                pd[i]['games'] += 1
             if bp == pd[i]['name']:
-                pd[i]['score'] += 0.5
                 pd[i]['draw'] += 1
-                pd[i]['games'] += 1
         
     return pd
 
@@ -908,7 +913,7 @@ def main():
     player_data = {}
     for i, (n, f, o, c) in enumerate(zip(names, eng_files, eng_opts, clock)):
         d = {i: {'name': n, 'file': f, 'opt': o,
-                 'clock': c, 'games': 0, 'score': 0, 'draw': 0, 'tf': 0}}
+                 'clock': c, 'win': 0, 'loss': 0, 'draw': 0, 'tf': 0}}
         player_data.update(d)
 
     analysis, round_num, num_res = [], 0, 0
