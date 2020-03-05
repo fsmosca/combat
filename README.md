@@ -373,6 +373,9 @@ Match: done, elapse: 0h:00m:39s:303ms
 2020-03-02 12:55:55,280 -      result_table -     INFO - Deuterium v2019.2                      2.0         2   100.0     0.0    0
 ```
 
+#### 7. Stopping a running match
+* To cancel a match, press ctrl+break keys.
+
 ### Features
 * Supports time control with base time and increment, like TC 60+1, in combat,  
   you need to specify in ms and that would become TC 60000+1000. In command line  
