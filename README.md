@@ -8,11 +8,12 @@ A python script to run engine vs engine game matches.
 ### Guide
 
 #### 1. Help
-combat.py -h
+combat.py -h or combat.py --help
 ```
-usage: combat [-h] [--engine-config-file ENGINE_CONFIG_FILE] [--engine [ENGINE [ENGINE ...]]] [--opening [OPENING [OPENING ...]]] [--round ROUND]
-              [--reverse] [--parallel PARALLEL] [--win-adjudication [WIN_ADJUDICATION [WIN_ADJUDICATION ...]]] [--output OUTPUT]
-              [--log-filename LOG_FILENAME] [--engine-log] [-v]
+usage: combat [-h] [--engine-config-file ENGINE_CONFIG_FILE] [--engine [ENGINE [ENGINE ...]]]
+              [--opening [OPENING [OPENING ...]]] [--round ROUND] [--reverse] [--parallel PARALLEL]
+              [--win-adjudication [WIN_ADJUDICATION [WIN_ADJUDICATION ...]]] [--output OUTPUT]
+              [--log-filename LOG_FILENAME] [--engine-log] [--gauntlet-color GAUNTLET_COLOR] [-v]
 
 Run engine vs engine match
 
@@ -78,9 +79,11 @@ optional arguments:
   --log-filename LOG_FILENAME
                         A filename to save its logs. default=combat_log.txt
   --engine-log          A flag to save engine log to a file.
+  --gauntlet-color GAUNTLET_COLOR
+                        Set the color of gauntlet to either white or black. Example --gauntlet-color white
   -v, --version         show program's version number and exit
 
-combat v1.22
+combat v1.27
 ```
 
 #### 2. Command line
@@ -120,11 +123,10 @@ pause
 ```
 Typical result table:
 ```
-name                                 score     games  score%   Draw%   tf
-Deuterium v2019.2 Elo 2000           188.0       300    62.7     4.0    0
-Deuterium v2019.2 Elo 1900            44.0       100    44.0     4.0    0
-Deuterium v2019.2 Elo 1800            45.5       100    45.5     5.0    0
-Deuterium v2019.2 Elo 1700            22.5       100    22.5     3.0    0
+                      name     score     games score%   win%  draw%   tf
+Deuterium v2019.2 Elo 1900      17.0        26   65.4   65.4    0.0    0
+Deuterium v2019.2 Elo 1800       5.0        13   38.5   38.5    0.0    0
+Deuterium v2019.2 Elo 1700       4.0        13   30.8   30.8    0.0    0
 ```
 
 #### 3. Using match.ini to run game matches
