@@ -30,7 +30,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.27'
+APP_VERSION = 'v1.28'
 
 
 # Increase limit to fix RecursionError
@@ -40,62 +40,6 @@ sys.setrecursionlimit(10000)
 # Save created loggers to be used later when creating other loggers, making
 # sure that logger has no duplicates to avoid double entries in the logs.
 saved_loggers = {}
-
-
-# Formated help Messages for parser
-engine_config_help ='''This is used to define the file where
-engine configurations are located. You may use included file combat.json
-or you can use engines.json from cutechess.
-example:
---engine-config-file combat.json
-or using the engines.json from cutechess
---engine-config-file "d:/chess/cutechess/engines.json"
-default is combat.json'''
-
-engine_help ='''This option is used to define the engines
-playing in the match. It also include tc or time control. You need to call
-this twice. See example below.
-format:
---engine config-name=E1 tc=btms1+itms1 --engine config-name=E2 tc=btms2+itms2
-where:
-    E1 = engine name from combat.json or engine config file
-    btms1 = base time in ms for engine 1
-    itms1 = increment time in ms for engine 1
-example:
---engine config-name="Deuterium v2019.2" tc=60000+100 --engine config-name="Deuterium v2019.2 mobility130" tc=60000+100
-note:
-    * engine1 will play as black, in the example above
-      this is Deuterium v2019.2
-    * engine2 will play as white
-    * When round reverse is true the side is reversed that is
-      engine1 will play as white and engine2 will play as black'''
-
-opening_help ='''Opening file is used by engine to start the game. You
-may use pgn or epd or fen formats.
-example:
---opening file=start.pgn random=true
-or with file path
---opening file="d:/chess/opening_start.pgn" random=true
-or with epd file
---opening file="d:/chess/opening.epd" random=true
-or to not use random
---opening file="d:/chess/opening.epd" random=false
-command line default value is ["file=grand_swiss_2019_6plies.pgn", "random=False"]'''
-
-parallel_help ='''Option to run game matches in parallel
-example:
---parallel 1
-default is 1, but if your cpu has more than 1 cores or threads
-lets say 8, you may use
---parallel 7'''
-win_adjudication_help ='''Option to stop the game when one side is
-already ahead on score. Both engines would agree that one side
-is winning and the other side is lossing.
-example:
---win-adjudication score=700 count=4
-where:
-    score: engine score in cp
-    count: number of times the score is recorded'''
         
 
 class Timer():
@@ -842,20 +786,61 @@ def main():
         epilog='%(prog)s' + ' %s' % APP_VERSION,
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('--engine-config-file', required=False,
-                        default='combat.json', help=engine_config_help)
+                        default='combat.json',
+                        help='This is used to define the file where\n'
+                        'engine configurations are located. You may use\n'
+                        'included file combat.json or you can use engines.json\n'
+                        'from cutechess. example:\n'
+                        '--engine-config-file combat.json\n'
+                        'or using the engines.json from cutechess\n'
+                        '--engine-config-file "d:/cutechess/engines.json"\n'
+                        'default is combat.json')
     parser.add_argument('--engine', nargs='*', action='append', required=False,
-                        help=engine_help)
+                        help='This option is used to define the engines\n'
+                        'playing in the match. It also include tc or time control.\n'
+                        'You need to call this twice or more. See example below.\n'
+                        'format:\n'
+                        '--engine config-name=E1 tc=btms1+itms1 --engine config-name=E2 tc=btms2+itms2\n'
+                        'where:\n'
+                        'E1 = engine name from combat.json or engine config file\n'
+                        'btms1 = base time in ms for engine 1\n'
+                        'itms1 = increment time in ms for engine 1\n'
+                        'example:\n'
+                        '--engine config-name="Deuterium v2019.2" tc=60000+100 --engine config-name="Deuterium v2019.2 mobility130" tc=60000+100\n'
+                        'note:\n'
+                        '* engine1 will play as black, in the example above\n'
+                        '  this is Deuterium v2019.2\n'
+                        '* engine2 will play as white\n'
+                        '* When round reverse is true the side is reversed that is\n'
+                        '  engine1 will play as white and engine2 will play as black')
     parser.add_argument('--opening', nargs='*', required=False, 
                         default=['file=grand_swiss_2019_6plies.pgn', 'random=False'],
-                        help=opening_help)
+                        help='Opening file is used by engine to start the game.\n'
+                        'You may use pgn or epd or fen formats.\n'
+                        'example:\n'
+                        '--opening file=start.pgn random=true\n'
+                        'or with file path\n'
+                        '--opening file="d:/chess/opening_start.pgn" random=true\n'
+                        'or with epd file\n'
+                        '--opening file="d:/chess/opening.epd" random=true\n'
+                        'or to not use random\n'
+                        '--opening file="d:/chess/opening.epd" random=false\n'
+                        'default value is ["file=grand_swiss_2019_6plies.pgn", "random=False"]')
     parser.add_argument('--round', default=500, type=int,
                         help='number of games to play, twice if reverse is true')
     parser.add_argument('--reverse', action='store_true',
                         help='A flag to reverse start side.')
     parser.add_argument('--parallel', default=1, type=int, required=False,
-                        help=parallel_help)
+                        help='option to run game matches in parallel, default=1')
     parser.add_argument('--win-adjudication', nargs='*', required=False,
-                        help=win_adjudication_help)
+                        help='Option to stop the game when one side is\n'
+                        'already ahead on score. Both engines would agree\n'
+                        'that one side is winning and the other side is lossing.\n'
+                        'example:\n'
+                        '--win-adjudication score=700 count=4\n'
+                        'where:\n'
+                        '  score: engine score in cp\n'
+                        '  count: number of times the score is recorded')
     parser.add_argument('--output', default='output_games.pgn',
                         help='Save output games, default=output_games.pgn')
     parser.add_argument('--log-filename', default='combat_log.txt',
