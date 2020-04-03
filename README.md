@@ -386,9 +386,9 @@ Match: done, elapse: 0h:00m:39s:303ms
 * Can adjudicate games based on winning score.
 * Can read engine settings from combat.json file or cutechess engines.json file.
 * Can run engine vs engine match based from match.ini file that is without using the command line options and flags.
+* Can run gauntlet match, that is one engine vs other engines.
 
 ### Limitations
-* Can only run engine vs engine match.
 * Only uci engines are supported.
 * Does not support time control with periods, and movetime.
 
