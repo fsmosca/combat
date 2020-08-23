@@ -425,7 +425,7 @@ def get_time_h_mm_ss_ms(time_ns, mmssms=False):
     return '{:01d}h:{:02d}m:{:02d}s:{:03d}ms'.format(h, m, s, ms)
     
     
-def print_result_table(pd, num_res, log_fn):
+def print_result_table(pd, log_fn):
     logger = setup_logging('result_table', log_fn)
     
     logger.info('')
@@ -908,7 +908,7 @@ def main():
                  'clock': c, 'win': 0, 'loss': 0, 'draw': 0, 'tf': 0}}
         player_data.update(d)
 
-    analysis, round_num, num_res = [], 0, 0
+    analysis, round_num = [], 0
     
     # Record elapse time for the whole match
     time_start = time.perf_counter_ns()
@@ -981,8 +981,6 @@ def main():
                 round_number = future.result()[2]
                 game_elapse = future.result()[3]  # nanoseconds
                 
-                num_res += 1
-                
                 wp = game_output.headers['White']
                 bp = game_output.headers['Black']
                 res = game_output.headers['Result']
@@ -1004,7 +1002,7 @@ def main():
                 logger.info(f'players: {wp} vs {bp}')
                 logger.info(f'result: {res} ({termi})')
                 
-                print_result_table(player_data, num_res, log_fn)
+                print_result_table(player_data, log_fn)
 
             except Exception:
                 logger.exception('Exception in completed analysis.')         
