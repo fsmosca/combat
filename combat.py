@@ -533,6 +533,8 @@ def get_game_list(fn, log_fn, max_round=500, randomize_pos=False):
                 if game is None:
                     break
                 games.append(game)
+                if not randomize_pos and len(games) >= max_round:
+                    break
     else:
         with open(fn) as pos:
             for lines in pos:
@@ -541,6 +543,8 @@ def get_game_list(fn, log_fn, max_round=500, randomize_pos=False):
                 game = chess.pgn.Game()
                 game = game.from_board(board)
                 games.append(game)
+                if not randomize_pos and len(games) >= max_round:
+                    break
                 
     if randomize_pos:
         random.shuffle(games)
