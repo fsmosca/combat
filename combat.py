@@ -268,7 +268,7 @@ class Match():
         score_adjudication = [False, False]
         
         eng = [chess.engine.SimpleEngine.popen_uci(self.eng_files[0]),
-                chess.engine.SimpleEngine.popen_uci(self.eng_files[1])]
+               chess.engine.SimpleEngine.popen_uci(self.eng_files[1])]
         
         # Set options
         for k, v in self.eng_opts[0].items():
@@ -408,21 +408,21 @@ def setup_logging(name, log_fn='combat_log.txt'):
     return logger
 
 
-def get_time_h_mm_ss_ms(time_ns, mmssms = False):
-        """
-        Converts time delta to hh:mm:ss:ms format.
-        
-        time_ns: time delta in nanoseconds
-        return: time in h:m:s:ms format
-        """
-        time_ms = time_ns//1000000
-        s, ms = divmod(time_ms, 1000)
-        m, s = divmod(s, 60)
-        h, m = divmod(m, 60)
+def get_time_h_mm_ss_ms(time_ns, mmssms=False):
+    """
+    Converts time delta to hh:mm:ss:ms format.
 
-        if mmssms:
-            return '{:02d}m:{:02d}s:{:03d}ms'.format(m, s, ms)
-        return '{:01d}h:{:02d}m:{:02d}s:{:03d}ms'.format(h, m, s, ms)
+    time_ns: time delta in nanoseconds
+    return: time in h:m:s:ms format
+    """
+    time_ms = time_ns//1000000
+    s, ms = divmod(time_ms, 1000)
+    m, s = divmod(s, 60)
+    h, m = divmod(m, 60)
+
+    if mmssms:
+        return '{:02d}m:{:02d}s:{:03d}ms'.format(m, s, ms)
+    return '{:01d}h:{:02d}m:{:02d}s:{:03d}ms'.format(h, m, s, ms)
     
     
 def print_result_table(pd, num_res, log_fn):
@@ -629,9 +629,9 @@ def get_engine_data(fn, ename, log_fn):
     
 
 def get_match_data(engine_option_value, match_fn, rounds, reverse, parallel,
-                       opt_win_adjudication, win_adj, win_score_cp,
-                       win_score_count, engine_json, op_file, random_pos,
-                       is_engine_log):
+                   opt_win_adjudication, win_adj, win_score_cp,
+                   win_score_count, engine_json, op_file, random_pos,
+                   is_engine_log):
     """
     Get command line option values or match.ini file and others.
     """
@@ -757,6 +757,7 @@ def error_check(players, names):
     for i in range(len(names)):
         if None in [players[i]['base'], players[i]['inc']]:
             raise Exception(f'{"Black" if i == 0 else "White"} TC was not defined! Use tc=base_time_ms+inc_time_ms')
+
 
 def get_engine_file_and_option(engine_json, names, log_fn):
     """
@@ -962,8 +963,9 @@ def main():
                     analysis.append(job)
                     games_per_pair_per_round += 1
                     
-                    if not reverse_start_side or \
-                        gauntlet_color == 'white' or gauntlet_color == 'black':
+                    if (not reverse_start_side
+                            or gauntlet_color == 'white'
+                            or gauntlet_color == 'black'):
                         break
                     
                     if games_per_pair_per_round >= 2:
