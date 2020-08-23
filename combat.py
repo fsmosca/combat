@@ -444,22 +444,22 @@ def print_result_table(pd, log_fn):
 
     # Table data
     for i in range(len(tname)):
-        w = pd[i]['win']  # num_win
-        l = pd[i]['loss'] # num_loss
-        d = pd[i]['draw'] # num_draw
-        g = w + l + d
-        s = w + d/2
-        sr = 100*s/g if g > 0 else 0.0
-        wr = 100*w/g if g > 0 else 0.0
-        dr = 100*d/g if g > 0 else 0.0
+        win = pd[i]['win']
+        loss = pd[i]['loss']
+        draw = pd[i]['draw']
+        games = win + loss + draw
+        score = win + draw / 2
+        sr = 100 * score / games if games > 0 else 0.0
+        wr = 100 * win / games if games > 0 else 0.0
+        dr = 100 * draw / games if games > 0 else 0.0
         tf = pd[i]['tf']
         
         tn = '{:>{width}}'.format(tname[i], width=width)
         
         logger.info('{} {:>9.1f} {:>9d} {:>6.1f} {:>6.1f} {:>6.1f} {:>4d}'.format(
             tn,
-            s,
-            g,
+            score,
+            games,
             sr,
             wr,
             dr,
