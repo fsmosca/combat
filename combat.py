@@ -30,7 +30,7 @@ import logging
 
 
 APP_NAME = 'combat'
-APP_VERSION = 'v1.28'
+APP_VERSION = 'v1.29'
 
 
 # Increase limit to fix RecursionError
@@ -516,7 +516,7 @@ def get_game_list(fn, log_fn, max_round=500, randomize_pos=False):
     
     t1 = time.perf_counter_ns()
     
-    games = []
+    ret_games, games = [], []
     
     fn_filename = Path(fn).name
     file_suffix = Path(fn).suffix
@@ -533,8 +533,6 @@ def get_game_list(fn, log_fn, max_round=500, randomize_pos=False):
                 if game is None:
                     break
                 games.append(game)
-                if len(games) >= max_round:
-                    break
     else:
         with open(fn) as pos:
             for lines in pos:
@@ -543,19 +541,23 @@ def get_game_list(fn, log_fn, max_round=500, randomize_pos=False):
                 game = chess.pgn.Game()
                 game = game.from_board(board)
                 games.append(game)
-                if len(games) >= max_round:
-                    break
                 
     if randomize_pos:
         random.shuffle(games)
+
+    # Only return the number of start game equal to max round.
+    for game in games:
+        ret_games.append(game)
+        if len(ret_games) >= max_round:
+            break
         
     elapse = time.perf_counter_ns() - t1
     
-    if len(games) < max_round:
-        logger.info(f'Number of positions in the file {len(games)} are below max_round {max_round}!')
-    logger.info(f'status: done, games prepared: {len(games)}, elapse: {get_time_h_mm_ss_ms(elapse)}\n')
-        
-    return games
+    if len(ret_games) < max_round:
+        logger.info(f'Number of positions in the file {len(ret_games)} are below max_round {max_round}!')
+    logger.info(f'status: done, games prepared: {len(ret_games)}, elapse: {get_time_h_mm_ss_ms(elapse)}\n')
+
+    return ret_games
 
 
 def print_match_conditions(max_round, reverse_start_side, opening_file,
